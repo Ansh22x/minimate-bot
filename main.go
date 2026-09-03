@@ -26,6 +26,24 @@ func main() {
 
 	log.Printf("✅ Authorized successfully on account: @%s", bot.Self.UserName)
 
+	// Set native Telegram "/" menu commands
+	botCommands := []tgbotapi.BotCommand{
+		{Command: "start", Description: "Start Minimate"},
+		{Command: "help", Description: "Full command directory"},
+		{Command: "commands", Description: "Full command directory"},
+		{Command: "ping", Description: "Check bot latency"},
+		{Command: "rules", Description: "View chat rules"},
+		{Command: "info", Description: "Get user info"},
+		{Command: "id", Description: "Get user and chat IDs"},
+		{Command: "warns", Description: "Check warning strikes"},
+		{Command: "filters", Description: "List chat filters"},
+		{Command: "notes", Description: "List saved notes"},
+	}
+	_, err = bot.Request(tgbotapi.NewSetMyCommands(botCommands...))
+	if err != nil {
+		log.Printf("Warning: Failed to set bot commands: %v", err)
+	}
+
 	// 4. Configure Polling
 	updateConfig := tgbotapi.NewUpdate(0)
 	updateConfig.Timeout = 60

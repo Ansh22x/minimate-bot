@@ -9,6 +9,9 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+// Track bot boot time for the /start command
+var botStartTime = time.Now()
+
 // HandleUpdate processes each incoming update concurrently
 func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	// Handle new members joining (Welcomes)
@@ -52,59 +55,83 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 	// 1. GENERAL / SYSTEM
 	// -------------------------
 	case "start":
-		reply = tgbotapi.NewMessage(chatID, "Hello! I am Minimate, running at maximum compiled speed.")
+		startText := fmt.Sprintf(`╭━━━━━━━━━━━━━━━━━━━━━━╮
+       🌸 𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 🌸
+╰━━━━━━━━━━━━━━━━━━━━━━╯
 
-	case "ping":
-		apiStart := time.Now()
-		msg := tgbotapi.NewMessage(chatID, "Pinging...")
-		msg.ReplyToMessageID = message.MessageID
-		sentMsg, err := bot.Send(msg)
-		if err == nil {
-			apiDuration := time.Since(apiStart).Milliseconds()
-			internalLatency := time.Since(start).Milliseconds()
-			edit := tgbotapi.NewEditMessageText(
-				chatID,
-				sentMsg.MessageID,
-				fmt.Sprintf("Pong!\n\n• API Roundtrip: %dms\n• Internal Routing: %dms", apiDuration, internalLatency),
-			)
-			bot.Send(edit)
+👋 Hey, %s!
+
+🤖 I’m 𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 — your smart
+🌐 Telegram Channel Management Assistant.
+
+⚡ Fast • Reliable • Easy to Use
+🛡️ Manage your channel with simple commands
+📢 Automate • Moderate • Organize
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+💡 𝐖𝐡𝐚𝐭 𝐂𝐚𝐧 𝐈 𝐃𝐨?
+
+🔹 Channel Management
+🔹 Auto Moderation
+🔹 Admin Tools
+🔹 Custom Commands
+🔹 Post & Message Management
+🔹 And many more useful features!
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 𝐆𝐞𝐭 𝐒𝐭𝐚𝐫𝐭𝐞𝐝
+
+💡 Use /help to see all available commands.
+
+🌸 𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 — Making Telegram
+Management Simple & Easy.`, message.From.FirstName)
+
+		// Create a new video message
+		videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FilePath("Intro.mp4"))
+		videoMsg.Caption = startText
+		
+		// Send the video
+		_, err := bot.Send(videoMsg)
+		if err != nil {
+			log.Printf("Failed to send start video: %v", err)
+			// Fallback to text if the video fails to load or path is wrong
+			fallback := tgbotapi.NewMessage(chatID, startText)
+			bot.Send(fallback)
 		}
+		
+		sendReply = false // Prevent the default text reply handler from firing
+
+
+	case "help", "commands":
+		helpText := `🤖 <b>Minimate Commands</b>
+
+<b>👥 General:</b>
+• <code>/start</code>, <code>/ping</code>, <code>/help</code> — Basics
+• <code>/info</code>, <code>/id</code> — User & chat details
+• <code>/rules</code> — View chat rules
+• <code>/warns</code> — Check your strikes
+• <code>/filters</code>, <code>/notes</code> — List saved items
+• <code>/get &lt;name&gt;</code> — Read a note
+
+<b>🛡️ Admin-Only:</b>
+<i>(Strictly restricted to group administrators)</i>
+
+• <b>Mod:</b> <code>/ban</code>, <code>/tban &lt;time&gt;</code>, <code>/unban</code>, <code>/kick</code>
+• <b>Mute:</b> <code>/mute</code>, <code>/tmute &lt;time&gt;</code>, <code>/unmute</code>
+• <b>Clean:</b> <code>/purge</code>, <code>/del</code>
+• <b>Roles:</b> <code>/promote</code>, <code>/demote</code>, <code>/adminlist</code>
+• <b>Warns:</b> <code>/warn</code>, <code>/dwarn</code>, <code>/rmwarns</code>
+• <b>Chat:</b> <code>/pin</code>, <code>/unpin</code>, <code>/unpinall</code>, <code>/invitelink</code>
+• <b>Rules:</b> <code>/setrules</code>, <code>/clearrules</code>
+• <b>Greet:</b> <code>/welcome</code>, <code>/goodbye</code>, <code>/setwelcome</code>, <code>/setgoodbye</code>
+• <b>Filters:</b> <code>/filter</code>, <code>/stop</code>, <code>/save</code>, <code>/clear</code>`
+
+		msg := tgbotapi.NewMessage(chatID, helpText)
+		msg.ParseMode = "HTML"
+		bot.Send(msg)
 		sendReply = false
-
-	case "help":
-		helpText := "*Minimate Module Directory:*\n\n" +
-			"🛡️ `/admin` - Moderation & management\n" +
-			"⚠️ `/warns` - Warning configurations\n" +
-			"👋 `/welcome` - Greeting setup\n" +
-			"📝 `/filters` - Automated text responses\n" +
-			"📜 `/rules` - Chat rules directory\n" +
-			"🧰 `/purge` - Fast message cleanup\n\n" +
-			"Use any command to view its specific parameters."
-		reply = tgbotapi.NewMessage(chatID, helpText)
-		reply.ParseMode = "Markdown"
-
-	case "info":
-		target := message.From
-		if message.ReplyToMessage != nil {
-			target = message.ReplyToMessage.From
-		}
-		infoText := fmt.Sprintf("*User Info:*\n• ID: `%d`\n• Username: @%s\n• First Name: %s",
-			target.ID, target.UserName, target.FirstName)
-		reply = tgbotapi.NewMessage(chatID, infoText)
-		reply.ParseMode = "Markdown"
-
-	case "id":
-		targetID := message.From.ID
-		targetName := message.From.FirstName
-		if message.ReplyToMessage != nil {
-			targetID = message.ReplyToMessage.From.ID
-			targetName = message.ReplyToMessage.From.FirstName
-		}
-		reply = tgbotapi.NewMessage(chatID, fmt.Sprintf("*%s's ID:* `%d`\n*Chat ID:* `%d`", targetName, targetID, chatID))
-		reply.ParseMode = "Markdown"
-
-	case "connect", "disconnect", "connections":
-		reply = tgbotapi.NewMessage(chatID, "Remote chat configuration is currently being indexed.")
 
 	// -------------------------
 	// 2. ADMIN & MODERATION
@@ -229,19 +256,3 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		}
 	}
 }
-
-// Temporary stubs for sub-handlers while building module files
-func handlePassiveFilters(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {}
-func HandleNewMembers(bot *tgbotapi.BotAPI, message *tgbotapi.Message)     {}
-func HandleLeftMember(bot *tgbotapi.BotAPI, message *tgbotapi.Message)     {}
-
-// ---------------------------------------------------------
-// TEMPORARY STUBS (To prevent compiler errors until built)
-// ---------------------------------------------------------
-func HandleNewMembers(bot *tgbotapi.BotAPI, message *tgbotapi.Message)    {}
-func HandleLeftMember(bot *tgbotapi.BotAPI, message *tgbotapi.Message)    {}
-func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, args string) {}
-func HandleGreetingCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, args string) {}
-func HandleLockCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, args string) {}
-func HandleCaptchaCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, args string) {}
-func HandleRulesCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, args string) {}

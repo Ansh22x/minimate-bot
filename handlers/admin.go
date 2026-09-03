@@ -402,7 +402,11 @@ func HandleInviteLink(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 		return
 	}
 
-	link, err := bot.GetInviteLink(tgbotapi.ChatConfig{ChatID: message.Chat.ID})
+	config := tgbotapi.ChatInviteLinkConfig{
+		ChatConfig: tgbotapi.ChatConfig{ChatID: message.Chat.ID},
+	}
+	
+	link, err := bot.GetInviteLink(config)
 	if err != nil {
 		bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Failed to export invite link."))
 		return
