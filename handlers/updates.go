@@ -92,17 +92,18 @@ Management Simple & Easy.`, message.From.FirstName)
 		videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FilePath("Intro.mp4"))
 		videoMsg.Caption = startText
 		
-		// Send the video
-		_, err := bot.Send(videoMsg)
+		// Send the video and capture the response
+		sentMsg, err := bot.Send(videoMsg)
 		if err != nil {
 			log.Printf("Failed to send start video: %v", err)
-			// Fallback to text if the video fails to load or path is wrong
 			fallback := tgbotapi.NewMessage(chatID, startText)
 			bot.Send(fallback)
+		} else if sentMsg.Video != nil {
+			// Print the File ID to your terminal
+			log.Printf("✅ SUCCESS! YOUR VIDEO FILE ID IS: %s", sentMsg.Video.FileID)
 		}
 		
 		sendReply = false // Prevent the default text reply handler from firing
-
 
 	case "help", "commands":
 		helpText := `🤖 <b>Minimate Commands</b>
@@ -131,6 +132,36 @@ Management Simple & Easy.`, message.From.FirstName)
 		msg := tgbotapi.NewMessage(chatID, helpText)
 		msg.ParseMode = "HTML"
 		bot.Send(msg)
+		sendReply = false
+
+	case "info":
+		infoText := fmt.Sprintf("👤 **User Info:**\nID: `%d`\nUsername: @%s\nFirst Name: %s", 
+			message.From.ID, message.From.UserName, message.From.FirstName)
+		reply = tgbotapi.NewMessage(chatID, infoText)
+		reply.ParseMode = "Markdown"
+	
+	case "id":
+		targetID := message.From.ID
+		targetName := message.From.FirstName
+
+		if message.ReplyToMessage != nil {
+			targetID = message.ReplyToMessage.From.ID
+			targetName = message.ReplyToMessage.From.FirstName
+		}
+		
+		idText := fmt.Sprintf("👤 **%s's ID:** `%d`\n💬 **Chat ID:** `%d`", targetName, targetID, chatID)
+		reply = tgbotapi.NewMessage(chatID, idText)
+		reply.ParseMode = "Markdown"
+	
+	case "ping":
+		apiStart := time.Now()
+		msg := tgbotapi.NewMessage(chatID, "Pinging...")
+		sentMsg, err := bot.Send(msg)
+		if err == nil {
+			apiDuration := time.Since(apiStart).Milliseconds()
+			internalLatency := time.Since(start).Milliseconds()
+			bot.Send(tgbotapi.NewEditMessageText(chatID, sentMsg.MessageID, fmt.Sprintf("Pong!\n\n• API Roundtrip: %dms\n• Internal Routing: %dms", apiDuration, internalLatency)))
+		}
 		sendReply = false
 
 	// -------------------------
