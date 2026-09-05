@@ -36,3 +36,11 @@ func InitDB() {
 
 	log.Println("✅ Successfully connected to Supabase PostgreSQL!")
 }
+
+// CloseDB gracefully terminates all connections in the pool
+func CloseDB() {
+	if Pool != nil {
+		Pool.Close()
+		log.Println("🔒 Database connection pool closed.")
+	}
+}

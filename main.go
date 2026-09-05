@@ -2,9 +2,12 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"minimate-bot/config"
-	"minimate-bot/database" // Import your new database package
+	"minimate-bot/database"
 	"minimate-bot/handlers"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -16,7 +19,8 @@ func main() {
 
 	// 2. Initialize Database Connection
 	database.InitDB()
-        database.CreateTables()
+	database.CreateTables()
+	defer database.CloseDB()
 
 	// 3. Initialize Bot
 	bot, err := tgbotapi.NewBotAPI(botToken)
@@ -49,10 +53,25 @@ func main() {
 	updateConfig.Timeout = 60
 	updates := bot.GetUpdatesChan(updateConfig)
 
+	// Listen for OS interrupt signals for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
 	log.Println("⚡ Minimate is online and listening for messages...")
 
-	// 5. The Event Loop
-	for update := range updates {
-		go handlers.HandleUpdate(bot, update)
+	// 5. The Event Loop with graceful exit
+	for {
+		select {
+		case sig := <-sigChan:
+			log.Printf("Received signal %v, shutting down...", sig)
+			bot.StopReceivingUpdates()
+			return
+		case update, ok := <-updates:
+			if !ok {
+				log.Println("Updates channel closed, exiting...")
+				return
+			}
+			go handlers.HandleUpdate(bot, update)
+		}
 	}
 }

@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"html"
+	"strings"
 
 	"minimate-bot/database"
 
@@ -12,7 +14,13 @@ import (
 // HandleWarnCommand manages user warnings
 func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, args string) {
 	chatID := message.Chat.ID
-	isUserAdmin := isAdmin(bot, chatID, message.From.ID)
+	fromID := int64(0)
+	if message.From != nil {
+		fromID = message.From.ID
+	} else if message.SenderChat != nil {
+		fromID = message.SenderChat.ID
+	}
+	isUserAdmin := isAdmin(bot, chatID, fromID)
 
 	switch cmd {
 	case "warn", "dwarn":
@@ -20,14 +28,22 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			bot.Send(tgbotapi.NewMessage(chatID, "❌ Only admins can warn users."))
 			return
 		}
-		if message.ReplyToMessage == nil {
-			bot.Send(tgbotapi.NewMessage(chatID, "❌ Reply to a user to warn them."))
+		if message.ReplyToMessage == nil || message.ReplyToMessage.From == nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Reply to a valid user message to warn them."))
 			return
 		}
 
 		target := message.ReplyToMessage.From
-		var newWarnCount int
+		if target.ID == bot.Self.ID {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ I cannot warn myself."))
+			return
+		}
+		if isAdmin(bot, chatID, target.ID) {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ You cannot issue warnings to an administrator."))
+			return
+		}
 
+		var newWarnCount int
 		query := `
 			INSERT INTO user_warns (chat_id, user_id, warn_count) 
 			VALUES ($1, $2, 1)
@@ -42,11 +58,12 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 		}
 
 		reason := "No reason provided."
-		if args != "" {
-			reason = args
+		if strings.TrimSpace(args) != "" {
+			reason = strings.TrimSpace(args)
 		}
 
-		warnText := fmt.Sprintf("⚠️ <b>%s</b> has been warned.\n<b>Reason:</b> %s\n<b>Warnings:</b> %d/3", target.FirstName, reason, newWarnCount)
+		warnText := fmt.Sprintf("⚠️ <b>%s</b> has been warned.\n<b>Reason:</b> %s\n<b>Warnings:</b> %d/3",
+			html.EscapeString(target.FirstName), html.EscapeString(reason), newWarnCount)
 		msg := tgbotapi.NewMessage(chatID, warnText)
 		msg.ParseMode = "HTML"
 		bot.Send(msg)
@@ -62,36 +79,70 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: chatID, UserID: target.ID},
 			}
 			bot.Request(banConfig)
-			
-			banMsg := tgbotapi.NewMessage(chatID, fmt.Sprintf("🚫 <b>%s</b> reached 3 warnings and was banned.", target.FirstName))
+
+			banMsg := tgbotapi.NewMessage(chatID, fmt.Sprintf("🚫 <b>%s</b> reached 3 warnings and was banned.", html.EscapeString(target.FirstName)))
 			banMsg.ParseMode = "HTML"
 			bot.Send(banMsg)
-			
+
 			// Reset warns after ban
 			database.Pool.Exec(context.Background(), "DELETE FROM user_warns WHERE chat_id = $1 AND user_id = $2", chatID, target.ID)
 		}
 
-	case "rmwarns":
+	case "unwarn":
 		if !isUserAdmin {
 			bot.Send(tgbotapi.NewMessage(chatID, "❌ Only admins can remove warnings."))
 			return
 		}
-		if message.ReplyToMessage == nil {
+		if message.ReplyToMessage == nil || message.ReplyToMessage.From == nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Reply to a user to reduce their warnings."))
+			return
+		}
+
+		target := message.ReplyToMessage.From
+		var count int
+		query := `
+			UPDATE user_warns 
+			SET warn_count = GREATEST(0, warn_count - 1) 
+			WHERE chat_id = $1 AND user_id = $2 
+			RETURNING warn_count;
+		`
+		err := database.Pool.QueryRow(context.Background(), query, chatID, target.ID).Scan(&count)
+		if err != nil {
+			count = 0
+		}
+
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Removed a warning for <b>%s</b>. Warnings: %d/3", html.EscapeString(target.FirstName), count))
+		msg.ParseMode = "HTML"
+		bot.Send(msg)
+
+	case "rmwarns":
+		if !isUserAdmin {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Only admins can reset warnings."))
+			return
+		}
+		if message.ReplyToMessage == nil || message.ReplyToMessage.From == nil {
 			bot.Send(tgbotapi.NewMessage(chatID, "❌ Reply to a user to reset their warnings."))
 			return
 		}
 
 		target := message.ReplyToMessage.From
 		database.Pool.Exec(context.Background(), "DELETE FROM user_warns WHERE chat_id = $1 AND user_id = $2", chatID, target.ID)
-		
-		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ All warnings for <b>%s</b> have been removed.", target.FirstName))
+
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ All warnings for <b>%s</b> have been reset.", html.EscapeString(target.FirstName)))
 		msg.ParseMode = "HTML"
 		bot.Send(msg)
 
 	case "warns":
-		target := message.From
-		if message.ReplyToMessage != nil {
+		var target *tgbotapi.User
+		if message.ReplyToMessage != nil && message.ReplyToMessage.From != nil {
 			target = message.ReplyToMessage.From
+		} else if message.From != nil {
+			target = message.From
+		}
+
+		if target == nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Unable to determine user identity."))
+			return
 		}
 
 		var count int
@@ -100,7 +151,12 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			count = 0
 		}
 
-		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("⚠️ <b>%s</b> has %d/3 warnings.", target.FirstName, count))
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("⚠️ <b>%s</b> has %d/3 warnings.", html.EscapeString(target.FirstName), count))
+		msg.ParseMode = "HTML"
+		bot.Send(msg)
+
+	case "warnlimit", "warnmode":
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("⚙️ Custom <b>/%s</b> configurations are scheduled for Phase 2.", html.EscapeString(cmd)))
 		msg.ParseMode = "HTML"
 		bot.Send(msg)
 	}
