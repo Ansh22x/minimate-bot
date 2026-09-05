@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -48,7 +50,23 @@ func main() {
 		log.Printf("Warning: Failed to set bot commands: %v", err)
 	}
 
-	// 4. Configure Polling
+	// 4. Start Lightweight HTTP Health Check Server (Required for Render Web Services & 24/7 Uptime)
+	go func() {
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8080"
+		}
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "🌸 MiniMate Bot is Online 24/7!\nAuthorized as: @%s", bot.Self.UserName)
+		})
+		log.Printf("🌐 Uptime health check server listening on :%s", port)
+		if err := http.ListenAndServe(":"+port, nil); err != nil {
+			log.Printf("HTTP server error: %v", err)
+		}
+	}()
+
+	// 5. Configure Polling
 	updateConfig := tgbotapi.NewUpdate(0)
 	updateConfig.Timeout = 60
 	updates := bot.GetUpdatesChan(updateConfig)
@@ -59,7 +77,7 @@ func main() {
 
 	log.Println("⚡ Minimate is online and listening for messages...")
 
-	// 5. The Event Loop with graceful exit
+	// 6. The Event Loop with graceful exit
 	for {
 		select {
 		case sig := <-sigChan:
