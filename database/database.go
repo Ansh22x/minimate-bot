@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -18,12 +19,20 @@ func InitDB() {
 		log.Fatal("DATABASE_URL must be set in the .env file")
 	}
 
-	// Create a background context
 	ctx := context.Background()
 
+	// Parse database URL into pgxpool configuration
+	poolConfig, err := pgxpool.ParseConfig(dbURL)
+	if err != nil {
+		log.Fatalf("Unable to parse DATABASE_URL: %v\n", err)
+	}
+
+	// Disable automatic prepared statement caching for Supabase / PgBouncer pooler compatibility
+	// This fixes the "prepared statement already exists (SQLSTATE 42P05)" error
+	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
 	// Connect to the database pool
-	var err error
-	Pool, err = pgxpool.New(ctx, dbURL)
+	Pool, err = pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		log.Fatalf("Unable to create database connection pool: %v\n", err)
 	}
@@ -34,7 +43,7 @@ func InitDB() {
 		log.Fatalf("Unable to ping the database: %v\n", err)
 	}
 
-	log.Println("✅ Successfully connected to Supabase PostgreSQL!")
+	log.Println("✅ Successfully connected to Supabase PostgreSQL (Simple Protocol Enabled)!")
 }
 
 // CloseDB gracefully terminates all connections in the pool
