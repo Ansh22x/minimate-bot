@@ -16,15 +16,33 @@ import (
 )
 
 func main() {
-	// 1. Load Configuration (.env)
+	// 1. Immediately launch HTTP Health Check Server so Render's Port Scanner detects open port instantly
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "🌸 MiniMate Bot is Online 24/7!\nStatus: Healthy & Active")
+	})
+
+	go func() {
+		log.Printf("🌐 Starting HTTP health-check server on port :%s ...", port)
+		if err := http.ListenAndServe(":"+port, nil); err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP health check server error: %v", err)
+		}
+	}()
+
+	// 2. Load Configuration (.env)
 	botToken := config.LoadConfig()
 
-	// 2. Initialize Database Connection
+	// 3. Initialize Database Connection
 	database.InitDB()
 	database.CreateTables()
 	defer database.CloseDB()
 
-	// 3. Initialize Bot
+	// 4. Initialize Bot
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		log.Panic("Failed to initialize bot: ", err)
@@ -49,22 +67,6 @@ func main() {
 	if err != nil {
 		log.Printf("Warning: Failed to set bot commands: %v", err)
 	}
-
-	// 4. Start Lightweight HTTP Health Check Server (Required for Render Web Services & 24/7 Uptime)
-	go func() {
-		port := os.Getenv("PORT")
-		if port == "" {
-			port = "8080"
-		}
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "🌸 MiniMate Bot is Online 24/7!\nAuthorized as: @%s", bot.Self.UserName)
-		})
-		log.Printf("🌐 Uptime health check server listening on :%s", port)
-		if err := http.ListenAndServe(":"+port, nil); err != nil {
-			log.Printf("HTTP server error: %v", err)
-		}
-	}()
 
 	// 5. Configure Polling
 	updateConfig := tgbotapi.NewUpdate(0)
