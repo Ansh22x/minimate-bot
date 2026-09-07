@@ -362,7 +362,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 				SafeSend(bot, fallback)
 			}
 		} else {
-			videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FileID("BAACAgUAAxkDAANbap4sJKeey8ZMTroIvriT5RlPBg8AAncgAALRZ-FUEDTPfZlCwTk9BA"))
+			videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FilePath("Intro.mp4"))
 			videoMsg.Caption = startText
 			videoMsg.ParseMode = "HTML"
 			videoMsg.ReplyMarkup = keyboard
