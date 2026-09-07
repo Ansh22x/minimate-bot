@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"regexp"
@@ -11,9 +12,8 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// Verified Public Custom Emoji IDs (derived from PokeEmpire & verified public Telegram packs)
+// Verified Public Custom Emoji IDs
 var EmojiMapping = map[string]string{
-	// Statuses, Shields & Badges
 	"👑":  "5433758796289685818",
 	"🛡️": "5251203410396458957",
 	"🛡":  "5251203410396458957",
@@ -23,123 +23,71 @@ var EmojiMapping = map[string]string{
 	"⭐":  "5438496463044752972",
 	"⭐️": "5438496463044752972",
 	"✅":  "5427009714745517609",
-	"❌":  "5210952531676504517",
-	"⚡":  "5411590687663608498",
-	"⚡️": "5411590687663608498",
-	"🔒":  "5465443379917629504",
-	"🔓":  "5465443379917629504",
-	"🔐":  "5465443379917629504",
-	"⚠️":  "5420323339723881652",
-	"ℹ️":  "6203791465471022369",
-	"ℹ":   "6203791465471022369",
-	"⚙️":  "5341715473882955310",
-	"⚙":   "5341715473882955310",
-	"📊":  "5231200819986047254",
-	"📈":  "5282950412784117735",
-	"🤖":  "5355051922862653659",
-	"💎":  "5197350061012436657",
-	"📜":  "5258500400918587241",
-	"📌":  "5397782960512444700",
-	"⏳":  "5269539162654010758",
-	"⌛":  "5269539162654010758",
-	"⏱️": "5382194935057372936",
-	"⏱":   "5382194935057372936",
-	"📣":  "5469903029144657419",
-	"📢":  "5789428375261023681",
-	"👤":  "5373012449597335010",
-	"👥":  "5372926953978341366",
-	"🗣️": "5370765563226236970",
-	"🗣":  "5370765563226236970",
-	"🔥":  "5424972470023104089",
-	"💡":  "5323743114513373152",
-	"🔗":  "5215288447190711367",
-	"🔍":  "5231012545799666522",
-	"🚫":  "5240241223632954241",
-	"🛑":  "5341806819247401359",
-	"⛔":  "5260293700088511294",
-	"🛠️": "5461047575379466857",
-	"🛠":  "5461047575379466857",
+	"✔️": "5427009714745517609",
+	"❌":  "5426990022328849767",
+	"❎":  "5426990022328849767",
 	"🌸":  "5375525443552162306",
-	"🪙":  "5382164415019768638",
-	"💰":  "5287231198098117669",
-	"💳":  "5445353829304387411",
-	"💸":  "5864068125112144897",
-	"🏆":  "5188344996356448758",
-	"🥇":  "5440539497383087970",
-	"🥈":  "5447203607294265305",
-	"🥉":  "5453902265922376865",
-	"💼":  "5359785904535774578",
-	"🎉":  "5461151367559141950",
-	"🧬":  "5431884253518375171",
-	"💥":  "5240492311716054039",
-	"🔴":  "5411225014148014586",
-	"🟢":  "5215522595922779944",
-	"🔵":  "4965219701572503640",
-	"🟣":  "5197368799954738967",
-	"🟡":  "6005661956931850799",
-	"⚪":  "5391014263852647327",
-	"⚪️": "5391014263852647327",
-	"📋":  "5877618313139327986",
-	"❓":  "5436113877181941026",
-	"✏️": "5213305971891248967",
-	"✏":   "5213305971891248967",
-	"💬":  "5224617957971206703",
-	"🔀":  "5222151079080246525",
-	"🧠":  "5377510010500699911",
-	"💭":  "5411199759740325999",
-	"💣":  "5454225015534805938",
-	"🎰":  "5255765065096774716",
-	"⚔️": "5453991094435997597",
-	"⚔":   "5453991094435997597",
-	"🎲":  "5280816565657300091",
-	"🎯":  "5350460637182993292",
-	"🤝":  "5357080225463149588",
-	"📦":  "5449800250032143374",
-	"🎁":  "5203996991054432397",
-	"🛒":  "5312361253610475399",
+	"🌺":  "5375525443552162306",
+	"⚡":  "5445284980978629559",
+	"⚡️": "5445284980978629559",
+	"🔥":  "5425029094158917849",
+	"🔒":  "5472097787438965706",
+	"🔓":  "5472097787438965706",
+	"⚠️": "5469903029144657419",
+	"⚠️️": "5469903029144657419",
+	"🚨":  "5469903029144657419",
+	"🤖":  "5429197991992899022",
+	"📌":  "5465223395895427227",
+	"📍":  "5465223395895427227",
+	"📊":  "5431736780883764835",
+	"📈":  "5431736780883764835",
+	"📉":  "5431736780883764835",
+	"⚙️": "5472164874811352210",
+	"⚙":   "5472164874811352210",
+	"🔧":  "5472164874811352210",
+	"🛠️": "5472164874811352210",
+	"💎":  "5406631276042002796",
+	"💍":  "5406631276042002796",
+	"💬":  "5409006440209724128",
+	"🗨️": "5409006440209724128",
+	"👤":  "5373147822998708337",
+	"👥":  "5373147822998708337",
+	"⏱️": "5465451838880894084",
+	"⏱":   "5465451838880894084",
+	"⏳":  "5465451838880894084",
+	"⏰":  "5465451838880894084",
+	"🕒":  "5465451838880894084",
+	"🚀":  "5461152000538680615",
+	"✈️": "5461152000538680615",
+	"🛸":  "5461152000538680615",
+	"🎯":  "5438496463044752972",
+	"🏆":  "5433758796289685818",
+	"🥇":  "5433758796289685818",
+	"🔔":  "5438496463044752972",
+	"🔕":  "5469903029144657419",
+	"📢":  "5409006440209724128",
+	"📣":  "5409006440209724128",
+	"💡":  "5469741319330996757",
+	"🔍":  "5431736780883764835",
+	"🔎":  "5431736780883764835",
+	"📜":  "5449660075184508972",
+	"📋":  "5449660075184508972",
+	"📁":  "5449660075184508972",
+	"📂":  "5449660075184508972",
+	"📄":  "5449660075184508972",
 	"📖":  "5449660075184508972",
 	"🎫":  "5377599075237502153",
 	"🏷️": "5235582317988171528",
 	"🏷":   "5235582317988171528",
-	"🎒":  "5409234219496907243",
-	"📺":  "5371074616187969568",
-	"🖼️": "5895427227528467580",
-	"🖼":   "5895427227528467580",
-	"🎬":  "5375464961822695044",
-	"🎨":  "5431456208487716895",
-	"📷":  "5235837920081887219",
-	"📸":  "5235837920081887219",
-	"➡️":  "5416117059207572332",
-	"⬅️":  "5386806351248768717",
 	"🔙":  "5400169738263352182",
 	"🔄":  "6122764622509380932",
-	"💀":  "5370971163310693562",
-	"👾":  "5370869711888194012",
-	"🏁":  "5411520005386806155",
-	"🏃":  "5397809391741181485",
-	"✉️": "5406631276042002796",
-	"✉":   "5406631276042002796",
-	"💾":  "5462956611033117422",
-	"📝":  "5334882760735598374",
-	"📡":  "5321304062715517873",
-	"📤":  "5433614747381538714",
-	"📥":  "5433811242135331842",
-	"🗳️": "5359741159566484212",
-	"🗳":   "5359741159566484212",
-	"😀":  "5429197991992899022",
 	"👋":  "5472354553527541051",
 	"🔨":  "5453991094435997597",
 	"🧹":  "5461047575379466857",
 	"🌐":  "5812392946917445652",
-	"🦧":  "6300910296760323319",
-	"🧿":  "5426900601101374618",
-	"🧮":  "5343545160015829015",
 	"🔇":  "5469903029144657419",
-	"🔈":  "5469903029144657419",
-	"🔊":  "5469903029144657419",
 	"🗑️": "5461047575379466857",
 	"🗑":  "5461047575379466857",
-	"🚷":  "5397809391741181485",
 }
 
 // Global Theme Emojis
@@ -160,29 +108,25 @@ var (
 	IconGear     = CustomEmoji("⚙️")
 )
 
-// CustomEmoji converts an emoji to a Telegram custom emoji tag using verified IDs
-func CustomEmoji(emoji string) string {
-	if id, ok := EmojiMapping[emoji]; ok && id != "" {
-		return fmt.Sprintf(`<tg-emoji emoji-id="%s">%s</tg-emoji>`, id, emoji)
-	}
-	return emoji
-}
-
-var tgEmojiRegex = regexp.MustCompile(`<tg-emoji[^>]*>(.*?)</tg-emoji>`)
-
-// StripCustomEmojis removes tg-emoji wrapper tags if Telegram API raises parsing errors
-func StripCustomEmojis(text string) string {
-	return tgEmojiRegex.ReplaceAllString(text, "$1")
-}
-
 var (
-	compiledEmojiRegex *regexp.Regexp
-	emojiRegexOnce     sync.Once
+	customEmojiRegex    = regexp.MustCompile(`<tg-emoji\s+emoji-id="[0-9]+">([^<]+)</tg-emoji>`)
+	compiledEmojiRegex  *regexp.Regexp
+	compiledEmojiOnce   sync.Once
 )
 
+func CustomEmoji(emojiChar string) string {
+	if id, ok := EmojiMapping[emojiChar]; ok && id != "" {
+		return fmt.Sprintf(`<tg-emoji emoji-id="%s">%s</tg-emoji>`, id, emojiChar)
+	}
+	return emojiChar
+}
+
+func StripCustomEmojis(text string) string {
+	return customEmojiRegex.ReplaceAllString(text, "$1")
+}
+
 func getEmojiRegex() *regexp.Regexp {
-	emojiRegexOnce.Do(func() {
-		// Sort keys by byte length descending so longer composite emojis match first
+	compiledEmojiOnce.Do(func() {
 		keys := make([]string, 0, len(EmojiMapping))
 		for k := range EmojiMapping {
 			keys = append(keys, k)
@@ -190,17 +134,16 @@ func getEmojiRegex() *regexp.Regexp {
 		sort.Slice(keys, func(i, j int) bool {
 			return len(keys[i]) > len(keys[j])
 		})
-
-		var parts []string
+		var escaped []string
 		for _, k := range keys {
-			parts = append(parts, regexp.QuoteMeta(k))
+			escaped = append(escaped, regexp.QuoteMeta(k))
 		}
-		compiledEmojiRegex = regexp.MustCompile(strings.Join(parts, "|"))
+		pattern := strings.Join(escaped, "|")
+		compiledEmojiRegex = regexp.MustCompile(pattern)
 	})
 	return compiledEmojiRegex
 }
 
-// ReplaceEmojis safely transforms standard emojis into Telegram custom emojis in a single pass without nesting
 func ReplaceEmojis(text string) string {
 	cleanText := StripCustomEmojis(text)
 	re := getEmojiRegex()
@@ -214,82 +157,105 @@ func ReplaceEmojis(text string) string {
 
 // SafeSend sends or edits a message with automatic custom emoji injection and fallback
 func SafeSend(bot *tgbotapi.BotAPI, chattable tgbotapi.Chattable) (tgbotapi.Message, error) {
-	switch c := chattable.(type) {
-	case tgbotapi.MessageConfig:
-		if c.ParseMode == "HTML" || c.ParseMode == "" {
-			c.ParseMode = "HTML"
-			c.Text = ReplaceEmojis(c.Text)
-			chattable = c
+	applyEmojis := func(c tgbotapi.Chattable, replace bool) tgbotapi.Chattable {
+		switch v := c.(type) {
+		case tgbotapi.MessageConfig:
+			if v.ParseMode == "HTML" || v.ParseMode == "" {
+				v.ParseMode = "HTML"
+				if replace {
+					v.Text = ReplaceEmojis(v.Text)
+				} else {
+					v.Text = StripCustomEmojis(v.Text)
+				}
+				return v
+			}
+		case tgbotapi.EditMessageTextConfig:
+			if v.ParseMode == "HTML" || v.ParseMode == "" {
+				v.ParseMode = "HTML"
+				if replace {
+					v.Text = ReplaceEmojis(v.Text)
+				} else {
+					v.Text = StripCustomEmojis(v.Text)
+				}
+				return v
+			}
+		case tgbotapi.EditMessageCaptionConfig:
+			if v.ParseMode == "HTML" || v.ParseMode == "" {
+				v.ParseMode = "HTML"
+				if replace {
+					v.Caption = ReplaceEmojis(v.Caption)
+				} else {
+					v.Caption = StripCustomEmojis(v.Caption)
+				}
+				return v
+			}
+		case tgbotapi.VideoConfig:
+			if v.ParseMode == "HTML" || v.ParseMode == "" {
+				v.ParseMode = "HTML"
+				if replace {
+					v.Caption = ReplaceEmojis(v.Caption)
+				} else {
+					v.Caption = StripCustomEmojis(v.Caption)
+				}
+				return v
+			}
+		case tgbotapi.PhotoConfig:
+			if v.ParseMode == "HTML" || v.ParseMode == "" {
+				v.ParseMode = "HTML"
+				if replace {
+					v.Caption = ReplaceEmojis(v.Caption)
+				} else {
+					v.Caption = StripCustomEmojis(v.Caption)
+				}
+				return v
+			}
+		case tgbotapi.AnimationConfig:
+			if v.ParseMode == "HTML" || v.ParseMode == "" {
+				v.ParseMode = "HTML"
+				if replace {
+					v.Caption = ReplaceEmojis(v.Caption)
+				} else {
+					v.Caption = StripCustomEmojis(v.Caption)
+				}
+				return v
+			}
+		case tgbotapi.DocumentConfig:
+			if v.ParseMode == "HTML" || v.ParseMode == "" {
+				v.ParseMode = "HTML"
+				if replace {
+					v.Caption = ReplaceEmojis(v.Caption)
+				} else {
+					v.Caption = StripCustomEmojis(v.Caption)
+				}
+				return v
+			}
 		}
-	case tgbotapi.EditMessageTextConfig:
-		if c.ParseMode == "HTML" || c.ParseMode == "" {
-			c.ParseMode = "HTML"
-			c.Text = ReplaceEmojis(c.Text)
-			chattable = c
-		}
-	case tgbotapi.VideoConfig:
-		if c.ParseMode == "HTML" || c.ParseMode == "" {
-			c.ParseMode = "HTML"
-			c.Caption = ReplaceEmojis(c.Caption)
-			chattable = c
-		}
-	case tgbotapi.PhotoConfig:
-		if c.ParseMode == "HTML" || c.ParseMode == "" {
-			c.ParseMode = "HTML"
-			c.Caption = ReplaceEmojis(c.Caption)
-			chattable = c
-		}
-	case tgbotapi.EditMessageCaptionConfig:
-		if c.ParseMode == "HTML" || c.ParseMode == "" {
-			c.ParseMode = "HTML"
-			c.Caption = ReplaceEmojis(c.Caption)
-			chattable = c
-		}
-	case tgbotapi.AnimationConfig:
-		if c.ParseMode == "HTML" || c.ParseMode == "" {
-			c.ParseMode = "HTML"
-			c.Caption = ReplaceEmojis(c.Caption)
-			chattable = c
-		}
-	case tgbotapi.DocumentConfig:
-		if c.ParseMode == "HTML" || c.ParseMode == "" {
-			c.ParseMode = "HTML"
-			c.Caption = ReplaceEmojis(c.Caption)
-			chattable = c
-		}
+		return c
 	}
 
-	msg, err := bot.Send(chattable)
-	if err != nil && (strings.Contains(err.Error(), "can't parse entities") || strings.Contains(err.Error(), "custom emoji") || strings.Contains(err.Error(), "entity_bounds_invalid")) {
-		// Fallback: strip custom emoji tags and retry
-		switch c := chattable.(type) {
-		case tgbotapi.MessageConfig:
-			c.Text = StripCustomEmojis(c.Text)
-			return bot.Send(c)
-		case tgbotapi.EditMessageTextConfig:
-			c.Text = StripCustomEmojis(c.Text)
-			return bot.Send(c)
-		case tgbotapi.VideoConfig:
-			c.Caption = StripCustomEmojis(c.Caption)
-			return bot.Send(c)
-		case tgbotapi.PhotoConfig:
-			c.Caption = StripCustomEmojis(c.Caption)
-			return bot.Send(c)
-		case tgbotapi.EditMessageCaptionConfig:
-			c.Caption = StripCustomEmojis(c.Caption)
-			return bot.Send(c)
-		case tgbotapi.AnimationConfig:
-			c.Caption = StripCustomEmojis(c.Caption)
-			return bot.Send(c)
-		case tgbotapi.DocumentConfig:
-			c.Caption = StripCustomEmojis(c.Caption)
-			return bot.Send(c)
-		}
+	firstTry := applyEmojis(chattable, true)
+	resp, err := bot.Request(firstTry)
+	if err == nil {
+		var msg tgbotapi.Message
+		_ = json.Unmarshal(resp.Result, &msg)
+		return msg, nil
 	}
-	return msg, err
+
+	errLower := strings.ToLower(err.Error())
+	if strings.Contains(errLower, "entities") || strings.Contains(errLower, "emoji") || strings.Contains(errLower, "parse") || strings.Contains(errLower, "tag") {
+		fallbackTry := applyEmojis(chattable, false)
+		resp2, err2 := bot.Request(fallbackTry)
+		if err2 == nil {
+			var msg tgbotapi.Message
+			_ = json.Unmarshal(resp2.Result, &msg)
+			return msg, nil
+		}
+		return tgbotapi.Message{}, err2
+	}
+
+	return tgbotapi.Message{}, err
 }
 
-// ColoredNotice helper using diff syntax highlighting for colored terminal cards
 func ColoredNotice(statusType string, title string, details string) string {
 	var prefix string
 	switch statusType {
@@ -302,7 +268,6 @@ func ColoredNotice(statusType string, title string, details string) string {
 	default:
 		prefix = "+"
 	}
-
 	return fmt.Sprintf(`<pre><code class="language-diff">%s [%s] %s</code></pre>`,
 		prefix, html.EscapeString(title), html.EscapeString(details))
 }
