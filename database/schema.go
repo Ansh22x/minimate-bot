@@ -22,8 +22,12 @@ func CreateTables() {
 		chat_id BIGINT,
 		keyword TEXT,
 		reply_text TEXT,
+		file_id TEXT,
+		media_type TEXT DEFAULT 'text',
 		PRIMARY KEY (chat_id, keyword)
 	);
+	ALTER TABLE filters ADD COLUMN IF NOT EXISTS file_id TEXT;
+	ALTER TABLE filters ADD COLUMN IF NOT EXISTS media_type TEXT DEFAULT 'text';
 
 	-- Rules Module
 	CREATE TABLE IF NOT EXISTS chat_rules (
