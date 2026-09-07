@@ -155,9 +155,9 @@ func getSubmenuKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 }
 
 func getHomeText(firstName string) string {
-	return fmt.Sprintf(`╭━━━━━━━━━━━━━━━━━━━━╮
+	return fmt.Sprintf(`╭━━━━━━━━━━━━━━━━━━━━━━╮
    🌸 <b>𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 𝐏𝐫𝐨</b> 🌸
-╰━━━━━━━━━━━━━━━━━━━━╯
+╰━━━━━━━━━━━━━━━━━━━━━━╯
 
 👋 Hey, <b>%s</b>!
 
@@ -273,7 +273,7 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_admin_tools":
-		newText = fmt.Sprintf(`🧹 <b>𝐂𝐡𝐚𝐭 𝐓𝐨𝐨𝐥𝐬, 𝐂𝐥𝐞𝐚𝐧𝐮𝐩 & 𝐆𝐫𝐞𝐞𝐭𝐢𝐧𝐠𝐬</b>
+		newText = fmt.Sprintf(`🧹 <b>𝐂𝐡𝐚𝐭 𝐓𝐨𝐨𝐥𝐬, 𝐂𝐥𝐞𝐚𝐧𝐮𝐩 & 𝐆𝐫𝐞𝐞𝐭𝐢𝐧Gs</b>
 
 <blockquote expandable><b>🧹 Tools & Cleanup:</b>
 • <code>/purge</code> / <code>/del</code> — Mass / single delete
@@ -318,28 +318,32 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		return
 	}
 
-	isMedia := query.Message.Video != nil || query.Message.Photo != nil || query.Message.Animation != nil || query.Message.Document != nil
-
-	if isMedia {
-		editCaption := tgbotapi.NewEditMessageCaption(chatID, messageID, newText)
-		editCaption.ParseMode = "HTML"
-		editCaption.ReplyMarkup = &keyboard
-		_, err := SafeSend(bot, editCaption)
-		if err != nil && !strings.Contains(err.Error(), "message is not modified") {
-			log.Printf("Failed to edit menu caption: %v", err)
-			// Fallback: try editing text or sending message if caption editing fails
-			editText := tgbotapi.NewEditMessageText(chatID, messageID, newText)
-			editText.ParseMode = "HTML"
-			editText.ReplyMarkup = &keyboard
-			SafeSend(bot, editText)
-		}
-	} else {
+	// Try editing caption or text based on message content, with cross-fallback
+	if query.Message.Text != "" {
+		// It's a plain text message
 		editText := tgbotapi.NewEditMessageText(chatID, messageID, newText)
 		editText.ParseMode = "HTML"
 		editText.ReplyMarkup = &keyboard
 		_, err := SafeSend(bot, editText)
 		if err != nil && !strings.Contains(err.Error(), "message is not modified") {
-			log.Printf("Failed to edit menu text: %v", err)
+			log.Printf("Failed to edit menu text, trying caption: %v", err)
+			editCaption := tgbotapi.NewEditMessageCaption(chatID, messageID, newText)
+			editCaption.ParseMode = "HTML"
+			editCaption.ReplyMarkup = &keyboard
+			SafeSend(bot, editCaption)
+		}
+	} else {
+		// It's a media message (video, photo, animation, document)
+		editCaption := tgbotapi.NewEditMessageCaption(chatID, messageID, newText)
+		editCaption.ParseMode = "HTML"
+		editCaption.ReplyMarkup = &keyboard
+		_, err := SafeSend(bot, editCaption)
+		if err != nil && !strings.Contains(err.Error(), "message is not modified") {
+			log.Printf("Failed to edit menu caption, trying text: %v", err)
+			editText := tgbotapi.NewEditMessageText(chatID, messageID, newText)
+			editText.ParseMode = "HTML"
+			editText.ReplyMarkup = &keyboard
+			SafeSend(bot, editText)
 		}
 	}
 }
