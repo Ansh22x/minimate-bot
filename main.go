@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	// 1. Immediately bind HTTP server for Render / Koyeb Web Service health-checks
+	// 1. Start HTTP Server immediately for Render Web Service 24/7 port binding
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -31,44 +31,58 @@ func main() {
 	})
 
 	go func() {
-		log.Printf("🌐 HTTP Health Server listening on port :%s", port)
+		log.Printf("🌐 Starting HTTP health-check server on port :%s ...", port)
 		if err := http.ListenAndServe(":"+port, nil); err != nil && err != http.ErrServerClosed {
-			log.Printf("⚠️ HTTP server error: %v", err)
+			log.Printf("HTTP health check server error: %v", err)
 		}
 	}()
 
-	// 2. Load Configuration
-	config.LoadConfig()
+	// 2. Load Configuration (.env)
+	botToken := config.LoadConfig()
 
-	// 3. Connect to Database & Create Tables
+	// 3. Initialize Database Connection
 	database.InitDB()
-	defer database.Pool.Close()
 	database.CreateTables()
+	defer database.CloseDB()
 
-	// 4. Initialize Telegram Bot
-	bot, err := tgbotapi.NewBotAPI(config.BotToken)
+	// 4. Initialize Bot
+	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
-		log.Fatalf("❌ Failed to initialize bot: %v", err)
+		log.Panic("Failed to initialize bot: ", err)
 	}
 
-	bot.Debug = false
-	log.Printf("🚀 Authorized as @%s (ID: %d)", bot.Self.UserName, bot.Self.ID)
+	log.Printf("✅ Authorized successfully on account: @%s", bot.Self.UserName)
+
+	// Set native Telegram "/" menu commands
+	botCommands := []tgbotapi.BotCommand{
+		{Command: "start", Description: "Start Minimate"},
+		{Command: "help", Description: "Full command directory"},
+		{Command: "commands", Description: "Full command directory"},
+		{Command: "ping", Description: "Check bot latency"},
+		{Command: "rules", Description: "View chat rules"},
+		{Command: "info", Description: "Get user info"},
+		{Command: "id", Description: "Get user and chat IDs"},
+		{Command: "warns", Description: "Check warning strikes"},
+		{Command: "filters", Description: "List chat filters"},
+		{Command: "notes", Description: "List saved notes"},
+	}
+	bot.Request(tgbotapi.NewSetMyCommands(botCommands...))
 
 	// 5. Setup Long Polling Update Stream
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
+	updateConfig := tgbotapi.NewUpdate(0)
+	updateConfig.Timeout = 60
 
-	updates := bot.GetUpdatesChan(u)
+	updates := bot.GetUpdatesChan(updateConfig)
 
-	// 6. Graceful Shutdown Signal Handler
-	stopChan := make(chan os.Signal, 1)
-	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
+	// 6. Graceful Shutdown Signal Handling
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		<-stopChan
+		<-sigChan
 		log.Println("🛑 Shutting down gracefully...")
 		bot.StopReceivingUpdates()
-		database.Pool.Close()
+		database.CloseDB()
 		os.Exit(0)
 	}()
 
