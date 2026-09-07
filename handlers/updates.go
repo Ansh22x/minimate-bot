@@ -13,65 +13,51 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// Track bot boot time
 var botStartTime = time.Now()
 
-// Cache for Intro video file ID
 var (
 	startVideoFileID string
 	videoFileIDMutex sync.RWMutex
 )
 
-// HandleUpdate processes each incoming update concurrently
 func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	// 1. Handle Captcha Button Taps
 	if update.CallbackQuery != nil && strings.HasPrefix(update.CallbackQuery.Data, "captcha_verify:") {
 		HandleCaptchaCallback(bot, update.CallbackQuery)
 		return
 	}
 
-	// 2. Handle Inline Keyboard Menu Tabs
 	if update.CallbackQuery != nil {
 		handleMenuCallback(bot, update.CallbackQuery)
 		return
 	}
 
-	// Guard against updates with no message
 	if update.Message == nil {
 		return
 	}
 
-	// Automatically track active group in database
 	RecordChatActivity(update.Message.Chat)
 
-	// 3. Handle Security Locks (Anti-Link, Anti-Forward, Media blocker)
 	if CheckMessageLocks(bot, update.Message) {
-		return // Message was deleted by security shield
+		return
 	}
 
-	// 4. Handle new members joining (Welcomes & Captcha Challenge)
 	if len(update.Message.NewChatMembers) > 0 {
 		locks := getLocks(update.Message.Chat.ID)
 		for _, newMember := range update.Message.NewChatMembers {
-			// If unauthorized bot lock is active, auto-ban the bot
 			if newMember.IsBot && locks.LockBots && newMember.ID != bot.Self.ID {
 				bot.Request(tgbotapi.BanChatMemberConfig{
 					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: update.Message.Chat.ID, UserID: newMember.ID},
 				})
 				continue
 			}
-
-			// Trigger Captcha verification for new human members
 			if !newMember.IsBot && newMember.ID != bot.Self.ID {
 				HandleCaptchaOnJoin(bot, update.Message.Chat.ID, &newMember)
 			}
 		}
-
 		HandleNewMembers(bot, update.Message)
 		return
 	}
 
-	// 5. Handle left members (Goodbyes)
 	if update.Message.LeftChatMember != nil {
 		HandleLeftMember(bot, update.Message)
 		return
@@ -79,19 +65,13 @@ func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 	start := time.Now()
 
-	// 6. Route Commands
 	if update.Message.IsCommand() {
 		handleCommand(bot, update.Message, start)
 		return
 	}
 
-	// 7. Route Regular Messages (Filters & Notes trigger)
 	handlePassiveFilters(bot, update.Message)
 }
-
-// ----------------------------------------------------
-// INLINE KEYBOARD MENU BUILDERS
-// ----------------------------------------------------
 
 func getStartKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 	addURL := fmt.Sprintf("https://t.me/%s?startgroup=true", botUsername)
@@ -169,17 +149,12 @@ func getHomeText(firstName string) string {
 👇 <i>Click any category tab to view commands:</i>`, html.EscapeString(firstName))
 }
 
-// ----------------------------------------------------
-// INLINE MENU CALLBACK HANDLER
-// ----------------------------------------------------
-
 func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 	if query == nil {
 		return
 	}
 
-	callbackResponse := tgbotapi.NewCallback(query.ID, "")
-	bot.Request(callbackResponse)
+	bot.Request(tgbotapi.NewCallback(query.ID, ""))
 
 	if query.Message == nil {
 		return
@@ -273,7 +248,7 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_admin_tools":
-		newText = fmt.Sprintf(`🧹 <b>𝐂𝐡𝐚𝐭 𝐓𝐨𝐨𝐥𝐬, 𝐂𝐥𝐞𝐚𝐧𝐮𝐩 & 𝐆𝐫𝐞𝐞𝐭𝐢𝐧Gs</b>
+		newText = fmt.Sprintf(`🧹 <b>𝐂𝐡𝐚𝐭 𝐓𝐨𝐨𝐥𝐬, 𝐂𝐥𝐞𝐚𝐧𝐮𝐩 & 𝐆𝐫𝐞𝐞𝐭𝐢𝐧𝐠𝐬</b>
 
 <blockquote expandable><b>🧹 Tools & Cleanup:</b>
 • <code>/purge</code> / <code>/del</code> — Mass / single delete
@@ -318,28 +293,23 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		return
 	}
 
-	// Try editing caption or text based on message content, with cross-fallback
 	if query.Message.Text != "" {
-		// It's a plain text message
 		editText := tgbotapi.NewEditMessageText(chatID, messageID, newText)
 		editText.ParseMode = "HTML"
 		editText.ReplyMarkup = &keyboard
 		_, err := SafeSend(bot, editText)
 		if err != nil && !strings.Contains(err.Error(), "message is not modified") {
-			log.Printf("Failed to edit menu text, trying caption: %v", err)
 			editCaption := tgbotapi.NewEditMessageCaption(chatID, messageID, newText)
 			editCaption.ParseMode = "HTML"
 			editCaption.ReplyMarkup = &keyboard
 			SafeSend(bot, editCaption)
 		}
 	} else {
-		// It's a media message (video, photo, animation, document)
 		editCaption := tgbotapi.NewEditMessageCaption(chatID, messageID, newText)
 		editCaption.ParseMode = "HTML"
 		editCaption.ReplyMarkup = &keyboard
 		_, err := SafeSend(bot, editCaption)
 		if err != nil && !strings.Contains(err.Error(), "message is not modified") {
-			log.Printf("Failed to edit menu caption, trying text: %v", err)
 			editText := tgbotapi.NewEditMessageText(chatID, messageID, newText)
 			editText.ParseMode = "HTML"
 			editText.ReplyMarkup = &keyboard
@@ -347,10 +317,6 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		}
 	}
 }
-
-// ----------------------------------------------------
-// COMMAND ROUTER
-// ----------------------------------------------------
 
 func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.Time) {
 	command := strings.ToLower(message.Command())
@@ -374,9 +340,6 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 	sendReply := true
 
 	switch command {
-	// -------------------------
-	// 1. GENERAL / SYSTEM
-	// -------------------------
 	case "start":
 		startText := getHomeText(fromFirstName)
 		keyboard := getStartKeyboard(bot.Self.UserName)
@@ -511,9 +474,6 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		}
 		sendReply = false
 
-	// -------------------------
-	// 2. ADMIN & MODERATION
-	// -------------------------
 	case "ban":
 		HandleBan(bot, message)
 		sendReply = false
@@ -562,58 +522,34 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		HandleTitle(bot, message, args)
 		sendReply = false
 
-	// -------------------------
-	// 3. VIP & SUBSCRIPTIONS
-	// -------------------------
 	case "setvip", "rmvip", "checkvip", "vipstatus", "premium":
 		HandleVIPCommand(bot, message, command, args)
 		sendReply = false
 
-	// -------------------------
-	// 4. WARNINGS
-	// -------------------------
 	case "warn", "dwarn", "unwarn", "warns", "warnlimit", "warnmode", "rmwarns":
 		HandleWarnCommand(bot, message, command, args)
 		sendReply = false
 
-	// -------------------------
-	// 5. GREETINGS & WELCOMES
-	// -------------------------
 	case "welcome", "setwelcome", "rmwelcome", "goodbye", "setgoodbye", "rmgoodbye", "welcomeclean", "cleanwelcome":
 		HandleGreetingCommand(bot, message, command, args)
 		sendReply = false
 
-	// -------------------------
-	// 6. NOTES & FILTERS
-	// -------------------------
 	case "get", "save", "clear", "notes", "filter", "stop", "filters":
 		HandleFilterCommand(bot, message, command, args)
 		sendReply = false
 
-	// -------------------------
-	// 7. SECURITY LOCKS & ANTI-SPAM
-	// -------------------------
 	case "lock", "unlock", "locks", "locktypes", "setflood", "floodmode", "antiflood":
 		HandleLockCommand(bot, message, command, args)
 		sendReply = false
 
-	// -------------------------
-	// 8. CAPTCHAS & VERIFICATION
-	// -------------------------
 	case "captcha", "captchamode", "captchatime", "captchakick":
 		HandleCaptchaCommand(bot, message, command, args)
 		sendReply = false
 
-	// -------------------------
-	// 9. RULES
-	// -------------------------
 	case "rules", "setrules", "clearrules", "privaterules":
 		HandleRulesCommand(bot, message, command, args)
 		sendReply = false
 
-	// -------------------------
-	// 10. MISC & CLEANUP
-	// -------------------------
 	case "purge":
 		HandlePurge(bot, message)
 		sendReply = false
