@@ -529,27 +529,31 @@ func HandleDemote(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 
 	target := message.ReplyToMessage.From
 
-	// Explicitly pass all boolean fields as "false" via MakeRequest.
-	// tgbotapi.PromoteChatMemberConfig omits false values, which causes Telegram API to leave permissions untouched.
+	// Explicitly pass all valid boolean fields as "false" via MakeRequest.
+	// We distinguish between channels and groups/supergroups because sending channel permissions
+	// (like can_post_messages) in a group causes Telegram to return BOT_CHANNELS_NA.
 	demoteParams := tgbotapi.Params{
 		"chat_id":                strconv.FormatInt(message.Chat.ID, 10),
 		"user_id":                strconv.FormatInt(target.ID, 10),
 		"is_anonymous":           "false",
 		"can_manage_chat":        "false",
 		"can_change_info":        "false",
-		"can_post_messages":      "false",
-		"can_edit_messages":      "false",
 		"can_delete_messages":    "false",
-		"can_manage_voice_chats": "false",
 		"can_manage_video_chats": "false",
 		"can_invite_users":       "false",
 		"can_restrict_members":   "false",
-		"can_pin_messages":       "false",
 		"can_promote_members":    "false",
-		"can_post_stories":       "false",
-		"can_edit_stories":       "false",
-		"can_delete_stories":     "false",
-		"can_manage_topics":      "false",
+	}
+
+	if message.Chat.IsChannel() {
+		demoteParams["can_post_messages"] = "false"
+		demoteParams["can_edit_messages"] = "false"
+		demoteParams["can_post_stories"] = "false"
+		demoteParams["can_edit_stories"] = "false"
+		demoteParams["can_delete_stories"] = "false"
+	} else {
+		demoteParams["can_pin_messages"] = "false"
+		demoteParams["can_manage_topics"] = "false"
 	}
 
 	_, err := bot.MakeRequest("promoteChatMember", demoteParams)
