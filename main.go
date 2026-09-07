@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -16,7 +15,7 @@ import (
 )
 
 func main() {
-	// 1. Immediately launch HTTP Health Check Server so Render's Port Scanner detects open port instantly
+	// 1. Immediately bind HTTP server for Render / Koyeb Web Service health-checks
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -24,74 +23,59 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "🌸 MiniMate Bot is Online 24/7!\nStatus: Healthy & Active")
+		w.Write([]byte("✅ MiniMate Bot is live and running 24/7!"))
+	})
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
 	})
 
 	go func() {
-		log.Printf("🌐 Starting HTTP health-check server on port :%s ...", port)
+		log.Printf("🌐 HTTP Health Server listening on port :%s", port)
 		if err := http.ListenAndServe(":"+port, nil); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP health check server error: %v", err)
+			log.Printf("⚠️ HTTP server error: %v", err)
 		}
 	}()
 
-	// 2. Load Configuration (.env)
-	botToken := config.LoadConfig()
+	// 2. Load Configuration
+	config.LoadConfig()
 
-	// 3. Initialize Database Connection
+	// 3. Connect to Database & Create Tables
 	database.InitDB()
+	defer database.Pool.Close()
 	database.CreateTables()
-	defer database.CloseDB()
 
-	// 4. Initialize Bot
-	bot, err := tgbotapi.NewBotAPI(botToken)
+	// 4. Initialize Telegram Bot
+	bot, err := tgbotapi.NewBotAPI(config.BotToken)
 	if err != nil {
-		log.Panic("Failed to initialize bot: ", err)
+		log.Fatalf("❌ Failed to initialize bot: %v", err)
 	}
 
-	log.Printf("✅ Authorized successfully on account: @%s", bot.Self.UserName)
+	bot.Debug = false
+	log.Printf("🚀 Authorized as @%s (ID: %d)", bot.Self.UserName, bot.Self.ID)
 
-	// Set native Telegram "/" menu commands
-	botCommands := []tgbotapi.BotCommand{
-		{Command: "start", Description: "Start Minimate"},
-		{Command: "help", Description: "Full command directory"},
-		{Command: "commands", Description: "Full command directory"},
-		{Command: "ping", Description: "Check bot latency"},
-		{Command: "rules", Description: "View chat rules"},
-		{Command: "info", Description: "Get user info"},
-		{Command: "id", Description: "Get user and chat IDs"},
-		{Command: "warns", Description: "Check warning strikes"},
-		{Command: "filters", Description: "List chat filters"},
-		{Command: "notes", Description: "List saved notes"},
-	}
-	_, err = bot.Request(tgbotapi.NewSetMyCommands(botCommands...))
-	if err != nil {
-		log.Printf("Warning: Failed to set bot commands: %v", err)
-	}
+	// 5. Setup Long Polling Update Stream
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
 
-	// 5. Configure Polling
-	updateConfig := tgbotapi.NewUpdate(0)
-	updateConfig.Timeout = 60
-	updates := bot.GetUpdatesChan(updateConfig)
+	updates := bot.GetUpdatesChan(u)
 
-	// Listen for OS interrupt signals for graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	// 6. Graceful Shutdown Signal Handler
+	stopChan := make(chan os.Signal, 1)
+	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
 
-	log.Println("⚡ Minimate is online and listening for messages...")
+	go func() {
+		<-stopChan
+		log.Println("🛑 Shutting down gracefully...")
+		bot.StopReceivingUpdates()
+		database.Pool.Close()
+		os.Exit(0)
+	}()
 
-	// 6. The Event Loop with graceful exit
-	for {
-		select {
-		case sig := <-sigChan:
-			log.Printf("Received signal %v, shutting down...", sig)
-			bot.StopReceivingUpdates()
-			return
-		case update, ok := <-updates:
-			if !ok {
-				log.Println("Updates channel closed, exiting...")
-				return
-			}
-			go handlers.HandleUpdate(bot, update)
-		}
+	log.Println("⚡ MiniMate is online and actively listening for updates...")
+
+	// 7. Event Dispatcher Loop
+	for update := range updates {
+		go handlers.HandleUpdate(bot, update)
 	}
 }
