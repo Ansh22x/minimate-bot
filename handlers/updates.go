@@ -5,7 +5,6 @@ import (
 	"html"
 	"log"
 	"strings"
-	"sync"
 	"time"
 
 	"minimate-bot/config"
@@ -15,12 +14,6 @@ import (
 
 // Track bot boot time
 var botStartTime = time.Now()
-
-// Cache for Intro video file ID
-var (
-	startVideoFileID string
-	videoFileIDMutex sync.RWMutex
-)
 
 // HandleUpdate processes each incoming update concurrently
 func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
@@ -148,46 +141,10 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 	// -------------------------
 	case "start":
 		startText := getHomeText(fromFirstName)
-		keyboard := getStartKeyboard(bot.Self.UserName)
-
-		videoFileIDMutex.RLock()
-		cachedID := startVideoFileID
-		videoFileIDMutex.RUnlock()
-
-		if cachedID != "" {
-			videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FileID(cachedID))
-			videoMsg.Caption = startText
-			videoMsg.ParseMode = "HTML"
-			videoMsg.ReplyMarkup = keyboard
-
-			_, err := SafeSend(bot, videoMsg)
-			if err != nil {
-				fallback := tgbotapi.NewMessage(chatID, startText)
-				fallback.ParseMode = "HTML"
-				fallback.ReplyMarkup = keyboard
-				SafeSend(bot, fallback)
-			}
-		} else {
-			videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FilePath("Intro.mp4"))
-			videoMsg.Caption = startText
-			videoMsg.ParseMode = "HTML"
-			videoMsg.ReplyMarkup = keyboard
-
-			sentMsg, err := SafeSend(bot, videoMsg)
-			if err != nil {
-				log.Printf("Failed to send start video: %v (falling back to text menu)", err)
-				fallback := tgbotapi.NewMessage(chatID, startText)
-				fallback.ParseMode = "HTML"
-				fallback.ReplyMarkup = keyboard
-				SafeSend(bot, fallback)
-			} else if sentMsg.Video != nil {
-				videoFileIDMutex.Lock()
-				startVideoFileID = sentMsg.Video.FileID
-				videoFileIDMutex.Unlock()
-				log.Printf("✅ SUCCESS! Cached video file ID: %s", sentMsg.Video.FileID)
-			}
-		}
-
+		msg := tgbotapi.NewMessage(chatID, startText)
+		msg.ParseMode = "HTML"
+		msg.ReplyMarkup = getStartKeyboard(bot.Self.UserName)
+		SafeSend(bot, msg)
 		sendReply = false
 
 	case "help", "commands":
