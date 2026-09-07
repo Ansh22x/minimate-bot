@@ -155,31 +155,18 @@ func getSubmenuKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 }
 
 func getHomeText(firstName string) string {
-	return fmt.Sprintf(`╭━━━━━━━━━━━━━━━━━━━━━━╮
-   %s <b>𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 𝐏𝐫𝐨</b> %s
-╰━━━━━━━━━━━━━━━━━━━━━━╯
+	return fmt.Sprintf(`╭━━━━━━━━━━━━━━━━━━━━╮
+   🌸 <b>𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 𝐏𝐫𝐨</b> 🌸
+╰━━━━━━━━━━━━━━━━━━━━╯
 
 👋 Hey, <b>%s</b>!
 
-<blockquote expandable>%s <b>I’m MiniMate Pro</b> — your high-performance, next-generation Telegram Group Management Assistant.
+<blockquote expandable>🤖 <b>Next-Gen Telegram Group Management</b>
+⚡ Fast • Reliable • Zero-Latency
+🛡️ Next-Gen Anti-Raid & Security Locks
+✨ Premium Animated UI & Smart Math Captcha</blockquote>
 
-%s <b>Fast • Reliable • Zero-Latency</b>
-%s Next-Gen Anti-Raid & Security Locks
-%s Premium Animated UI & Smart Math Captcha
-📢 Automate • Moderate • Organize</blockquote>
-
-%s <b>Interactive Keyboard Navigation:</b>
-• Browse all <b>Member Commands</b>, <b>Admin Moderation</b> & <b>Security Locks</b> directly using the buttons below!
-
-━━━━━━━━━━━━━━━━━━━━━━
-👇 <i>Click any category tab to view complete commands directory:</i>`,
-		IconFlower, IconFlower,
-		html.EscapeString(firstName),
-		IconRobot,
-		IconBolt,
-		IconShield,
-		IconCrown,
-		IconSparkles)
+👇 <i>Click any category tab to view commands:</i>`, html.EscapeString(firstName))
 }
 
 // ----------------------------------------------------
@@ -187,8 +174,16 @@ func getHomeText(firstName string) string {
 // ----------------------------------------------------
 
 func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
+	if query == nil {
+		return
+	}
+
 	callbackResponse := tgbotapi.NewCallback(query.ID, "")
 	bot.Request(callbackResponse)
+
+	if query.Message == nil {
+		return
+	}
 
 	chatID := query.Message.Chat.ID
 	messageID := query.Message.MessageID
@@ -218,151 +213,132 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 	case "tab_member_cmds":
 		newText = fmt.Sprintf(`👥 <b>𝐆𝐞𝐧𝐞𝐫𝐚𝐥 & 𝐌𝐞𝐦𝐛𝐞𝐫 𝐂𝐨𝐦𝐦𝐚𝐧𝐝𝐬</b>
 
-<blockquote expandable>• <code>/start</code> — Open main bot menu
-• <code>/ping</code> — Check bot latency & status
-• <code>/help</code> (or <code>/commands</code>) — Open commands directory
-• <code>/info</code> — View your Telegram ID & account details
-• <code>/id</code> — Get your ID or replied user's ID
-• <code>/rules</code> — Read current group rules
-• <code>/privaterules</code> — Receive chat rules directly in PM
-• <code>/warns</code> — Check your warning strike count
-• <code>/filters</code> — List all active group auto-reply filters
-• <code>/notes</code> — List saved group notes
-• <code>/get &lt;name&gt;</code> — Fetch and read a saved note or media
-• <code>/premium</code> (or <code>/checkvip</code>) — Check group VIP status & expiry</blockquote>`)
+<blockquote expandable>• <code>/start</code> — Main bot menu
+• <code>/ping</code> — Latency & status
+• <code>/help</code> — Commands directory
+• <code>/id</code> / <code>/info</code> — User & chat ID
+• <code>/rules</code> — Group rules (or <code>/privaterules</code>)
+• <code>/warns</code> — Check warning count
+• <code>/filters</code> — Group auto-replies
+• <code>/notes</code> / <code>/get &lt;name&gt;</code> — Saved notes
+• <code>/premium</code> — VIP status & expiry</blockquote>`)
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_admin_cmds":
 		newText = fmt.Sprintf(`🛡️ <b>𝐀𝐝𝐦𝐢𝐧 𝐌𝐚𝐬𝐭𝐞𝐫 𝐃𝐢𝐫𝐞𝐜𝐭𝐨𝐫𝐲</b>
 
 <blockquote expandable><b>🔨 Moderation:</b>
-• <code>/ban</code>, <code>/tban &lt;time&gt;</code>, <code>/unban</code>, <code>/kick</code>
-• <code>/mute</code>, <code>/tmute &lt;time&gt;</code>, <code>/unmute</code>
+• <code>/ban</code>, <code>/tban</code>, <code>/unban</code>, <code>/kick</code>, <code>/mute</code>, <code>/tmute</code>, <code>/unmute</code>
 • <code>/warn</code>, <code>/dwarn</code>, <code>/unwarn</code>, <code>/rmwarns</code>
+• <code>/promote</code>, <code>/demote</code>
 
 <b>🔐 Security & Protection:</b>
-• <code>/lock &lt;type&gt;</code>, <code>/unlock &lt;type&gt;</code>, <code>/locks</code>, <code>/locktypes</code>
-• <code>/captcha &lt;on/off&gt;</code>, <code>/captchamode &lt;button|math&gt;</code>, <code>/captchatime &lt;sec&gt;</code>
+• <code>/lock &lt;type&gt;</code>, <code>/unlock</code>, <code>/locks</code>, <code>/locktypes</code>
+• <code>/captcha</code>, <code>/captchamode</code>, <code>/captchatime</code>
 
 <b>🧹 Tools & Messages:</b>
 • <code>/purge</code>, <code>/del</code>, <code>/pin</code>, <code>/unpin</code>, <code>/unpinall</code>
-• <code>/setrules</code>, <code>/clearrules</code>, <code>/welcome</code>, <code>/setwelcome</code>, <code>/rmwelcome</code>
+• <code>/welcome</code>, <code>/setwelcome</code>, <code>/rmwelcome</code>
 • <code>/goodbye</code>, <code>/setgoodbye</code>, <code>/rmgoodbye</code>
-• <code>/filter &lt;word&gt; &lt;reply&gt;</code>, <code>/stop &lt;word&gt;</code></blockquote>`)
+• <code>/setrules</code>, <code>/clearrules</code>, <code>/filter</code>, <code>/stop</code></blockquote>`)
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_admin_mod":
 		newText = fmt.Sprintf(`🔨 <b>𝐌𝐨𝐝𝐞𝐫𝐚𝐭𝐢𝐨𝐧 & 𝐏𝐮𝐧𝐢𝐬𝐡𝐦𝐞𝐧𝐭𝐬</b>
-<i>(Reply to a user's message to execute)</i>
+<i>(Reply to a user to execute)</i>
 
-<blockquote expandable>• <code>/ban</code> — Permanently bans replied user
-• <code>/tban &lt;time&gt;</code> — Temporary ban (e.g. <code>/tban 2h</code>, <code>/tban 1d</code>)
-• <code>/unban</code> — Unbans replied user
-• <code>/kick</code> — Kicks user out of the group
-• <code>/mute</code> — Permanently mutes replied user
-• <code>/tmute &lt;time&gt;</code> — Temporary mute (e.g. <code>/tmute 30m</code>, <code>/tmute 2h</code>)
-• <code>/unmute</code> — Restores all chat permissions
-• <code>/warn [reason]</code> — Issues a warning strike (auto-ban at 3 strikes)
-• <code>/dwarn [reason]</code> — Deletes message and issues a warning strike
-• <code>/unwarn</code> — Removes 1 warning strike from user
-• <code>/rmwarns</code> — Resets all warning strikes for replied user</blockquote>`)
+<blockquote expandable>• <code>/ban</code> / <code>/unban</code> — Permanent ban / unban
+• <code>/tban &lt;time&gt;</code> — Temp-ban (e.g. <code>/tban 2h</code>)
+• <code>/kick</code> — Kick user from group
+• <code>/mute</code> / <code>/unmute</code> — Permanent mute / unmute
+• <code>/tmute &lt;time&gt;</code> — Temp-mute (e.g. <code>/tmute 30m</code>)
+• <code>/warn</code> / <code>/dwarn</code> — Strike (3 = auto-ban)
+• <code>/unwarn</code> / <code>/rmwarns</code> — Remove / reset warnings
+• <code>/promote</code> / <code>/demote</code> — Promote / demote admin</blockquote>`)
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_admin_locks":
-		newText = fmt.Sprintf(`%s <b>𝐒𝐞𝐜𝐮𝐫𝐢𝐭𝐲 𝐋𝐨𝐜𝐤𝐬 & 𝐂𝐚𝐩𝐭𝐜𝐡𝐚</b>
+		newText = fmt.Sprintf(`🛡️ <b>𝐒𝐞𝐜𝐮𝐫𝐢𝐭𝐲 𝐋𝐨𝐜𝐤𝐬 & 𝐂𝐚𝐩𝐭𝐜𝐡𝐚</b>
 
 <blockquote expandable><b>🔐 Content Locks:</b>
-• <code>/lock links</code> — Deletes URLs, invites and web links
-• <code>/lock forwards</code> — Blocks forwarded messages
-• <code>/lock stickers</code> — Blocks stickers and GIF animations
-• <code>/lock media</code> — Blocks photos, videos, files and voice notes
-• <code>/lock bots</code> — Automatically bans newly added unauthorized bots
-• <code>/lock all</code> — Enables all security locks at once
-• <code>/unlock &lt;type&gt;</code> — Unlocks specified category
-• <code>/locks</code> — View active group lock status
-• <code>/locktypes</code> — List all available lock types
+• <code>/lock &lt;type&gt;</code> — <code>links</code>, <code>forwards</code>, <code>stickers</code>, <code>media</code>, <code>bots</code>, <code>all</code>
+• <code>/unlock &lt;type&gt;</code> — Unlock specified type
+• <code>/locks</code> — View active group locks
+• <code>/locktypes</code> — List all lock types
 
-<b>🤖 Automated Captcha:</b>
-• <code>/captcha &lt;on/off&gt;</code> — Enable/disable join verification
-• <code>/captchamode &lt;button|math&gt;</code> — Set one-tap button or math puzzle
-• <code>/captchatime &lt;seconds&gt;</code> — Set timeout before auto-kick (30-600s)</blockquote>`, IconShield)
+<b>🤖 Smart Captcha:</b>
+• <code>/captcha &lt;on/off&gt;</code> — Toggle join verification
+• <code>/captchamode &lt;button|math&gt;</code> — Set mode
+• <code>/captchatime &lt;sec&gt;</code> — Set timeout (30-600s)</blockquote>`)
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_admin_tools":
 		newText = fmt.Sprintf(`🧹 <b>𝐂𝐡𝐚𝐭 𝐓𝐨𝐨𝐥𝐬, 𝐂𝐥𝐞𝐚𝐧𝐮𝐩 & 𝐆𝐫𝐞𝐞𝐭𝐢𝐧𝐠𝐬</b>
 
-<blockquote expandable><b>🧹 Cleanup & Pinning:</b>
-• <code>/purge</code> — Reply to a message to delete all messages down to command
-• <code>/del</code> — Deletes replied message
-• <code>/pin</code> — Pins replied message in group
-• <code>/unpin</code> — Unpins replied message
-• <code>/unpinall</code> — Unpins all pinned messages in group
+<blockquote expandable><b>🧹 Tools & Cleanup:</b>
+• <code>/purge</code> / <code>/del</code> — Mass / single delete
+• <code>/pin</code> / <code>/unpin</code> / <code>/unpinall</code> — Message pinning
 
-<b>🌸 Welcome & Goodbye Cards:</b>
-• <code>/welcome &lt;on/off&gt;</code> — Toggle join greetings
-• <code>/setwelcome &lt;text&gt;</code> — Set custom card (tags: <code>{first}</code>, <code>{username}</code>, <code>{chatname}</code>, <code>{id}</code>)
-• <code>/rmwelcome</code> — Remove and disable welcome card
-• <code>/goodbye &lt;on/off&gt;</code> — Toggle leave messages
-• <code>/setgoodbye &lt;text&gt;</code> — Set custom goodbye message
-• <code>/rmgoodbye</code> — Remove goodbye card
-
-<b>📜 Rules & Filters:</b>
-• <code>/setrules &lt;text&gt;</code> — Save group rules
-• <code>/clearrules</code> — Remove group rules
-• <code>/filter &lt;word&gt; &lt;reply&gt;</code> — Save text or media filter (photo/video/gif/sticker)
-• <code>/stop &lt;word&gt;</code> — Remove an auto-reply filter</blockquote>`)
+<b>🌸 Greetings & Rules:</b>
+• <code>/welcome &lt;on/off&gt;</code>, <code>/setwelcome</code>, <code>/rmwelcome</code>
+• <code>/goodbye &lt;on/off&gt;</code>, <code>/setgoodbye</code>, <code>/rmgoodbye</code>
+• <code>/setrules</code> / <code>/clearrules</code> — Manage rules
+• <code>/filter &lt;word&gt; &lt;reply&gt;</code> / <code>/stop</code> — Auto-replies</blockquote>`)
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_vip":
-		newText = fmt.Sprintf(`%s <b>𝐕𝐈𝐏 𝐏𝐫𝐞𝐦𝐢𝐮𝐦 𝐒𝐮𝐛𝐬𝐜𝐫𝐢𝐩𝐭𝐢𝐨𝐧</b>
+		newText = fmt.Sprintf(`👑 <b>𝐕𝐈𝐏 𝐏𝐫𝐞𝐦𝐢𝐮𝐦 𝐒𝐮𝐛𝐬𝐜𝐫𝐢𝐩𝐭𝐢𝐨𝐧</b>
 
-<blockquote expandable><b>💎 Premium Group Features:</b>
-• ⚡ <b>Zero-Latency Priority Engine:</b> Instantaneous filter matching
-• 🛡️ <b>Advanced Anti-Raid Shield:</b> High-speed join flood protection
-• 🎨 <b>Custom Greeting Graphics:</b> Animated banner card integration
-• 📊 <b>Extended Group Limits:</b> Unlimited custom filters and notes
+<blockquote expandable><b>💎 Premium Features:</b>
+• ⚡ <b>Zero-Latency Engine:</b> Instant filter execution
+• 🛡️ <b>Anti-Raid Shield:</b> High-speed join flood defense
+• 🎨 <b>Custom Greeting Graphics:</b> Banner cards
+• 📊 <b>Unlimited Limits:</b> Unlimited filters & notes
 
 <b>🔍 Check Subscription:</b>
-• Use <code>/premium</code> (or <code>/checkvip</code>) to view this chat's VIP status & expiry date.
+• Use <code>/premium</code> to check status & expiry.
 
-💬 <i>Contact @%s to activate VIP Pro for your group!</i></blockquote>`,
-			IconCrown, html.EscapeString(config.OwnerUsername))
+💬 <i>Contact @%s to activate VIP!</i></blockquote>`, html.EscapeString(config.OwnerUsername))
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_info":
 		uptime := time.Since(botStartTime).Round(time.Second)
 		newText = fmt.Sprintf(`ℹ️ <b>𝐁𝐨𝐭 𝐒𝐭𝐚𝐭𝐮𝐬 & 𝐈𝐧𝐟𝐨</b>
 
-<blockquote expandable>%s <b>Bot:</b> @%s
+<blockquote expandable>🤖 <b>Bot:</b> @%s
 ⏱️ <b>Uptime:</b> %s
-%s <b>Engine:</b> Go (Golang) + Supabase PostgreSQL
-%s <b>Security:</b> Active Anti-Raid Shield
-%s <b>Status:</b> All systems operational</blockquote>`,
-			IconRobot, botUsername,
-			uptime.String(),
-			IconBolt,
-			IconShield,
-			IconCheck)
+⚡ <b>Engine:</b> Go (Golang) + PostgreSQL
+🛡️ <b>Security:</b> Anti-Raid Shield Active
+✅ <b>Status:</b> All systems operational</blockquote>`,
+			botUsername,
+			uptime.String())
 		keyboard = getSubmenuKeyboard(botUsername)
 
 	default:
 		return
 	}
 
-	if query.Message.Video != nil || query.Message.Photo != nil {
+	isMedia := query.Message.Video != nil || query.Message.Photo != nil || query.Message.Animation != nil || query.Message.Document != nil
+
+	if isMedia {
 		editCaption := tgbotapi.NewEditMessageCaption(chatID, messageID, newText)
 		editCaption.ParseMode = "HTML"
 		editCaption.ReplyMarkup = &keyboard
 		_, err := SafeSend(bot, editCaption)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "message is not modified") {
 			log.Printf("Failed to edit menu caption: %v", err)
+			// Fallback: try editing text or sending message if caption editing fails
+			editText := tgbotapi.NewEditMessageText(chatID, messageID, newText)
+			editText.ParseMode = "HTML"
+			editText.ReplyMarkup = &keyboard
+			SafeSend(bot, editText)
 		}
 	} else {
 		editText := tgbotapi.NewEditMessageText(chatID, messageID, newText)
 		editText.ParseMode = "HTML"
 		editText.ReplyMarkup = &keyboard
 		_, err := SafeSend(bot, editText)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "message is not modified") {
 			log.Printf("Failed to edit menu text: %v", err)
 		}
 	}
