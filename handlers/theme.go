@@ -245,6 +245,18 @@ func SafeSend(bot *tgbotapi.BotAPI, chattable tgbotapi.Chattable) (tgbotapi.Mess
 			c.Caption = ReplaceEmojis(c.Caption)
 			chattable = c
 		}
+	case tgbotapi.AnimationConfig:
+		if c.ParseMode == "HTML" || c.ParseMode == "" {
+			c.ParseMode = "HTML"
+			c.Caption = ReplaceEmojis(c.Caption)
+			chattable = c
+		}
+	case tgbotapi.DocumentConfig:
+		if c.ParseMode == "HTML" || c.ParseMode == "" {
+			c.ParseMode = "HTML"
+			c.Caption = ReplaceEmojis(c.Caption)
+			chattable = c
+		}
 	}
 
 	msg, err := bot.Send(chattable)
@@ -264,6 +276,12 @@ func SafeSend(bot *tgbotapi.BotAPI, chattable tgbotapi.Chattable) (tgbotapi.Mess
 			c.Caption = StripCustomEmojis(c.Caption)
 			return bot.Send(c)
 		case tgbotapi.EditMessageCaptionConfig:
+			c.Caption = StripCustomEmojis(c.Caption)
+			return bot.Send(c)
+		case tgbotapi.AnimationConfig:
+			c.Caption = StripCustomEmojis(c.Caption)
+			return bot.Send(c)
+		case tgbotapi.DocumentConfig:
 			c.Caption = StripCustomEmojis(c.Caption)
 			return bot.Send(c)
 		}
