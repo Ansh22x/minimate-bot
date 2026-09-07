@@ -497,22 +497,26 @@ func HandlePromote(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 			ChatID: message.Chat.ID,
 			UserID: target.ID,
 		},
-		CanDeleteMessages:  true,
-		CanInviteUsers:     true,
-		CanRestrictMembers: true,
-		CanPinMessages:     true,
+		CanChangeInfo:       false,
+		CanDeleteMessages:   true,
+		CanInviteUsers:      true,
+		CanRestrictMembers:  true,
+		CanPinMessages:      true,
+		CanPromoteMembers:   false,
+		CanManageVoiceChats: true,
 	}
 
 	_, err := bot.Request(promoteConfig)
 	if err != nil {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Failed to promote user.")
+		log.Printf("[Promote] Error promoting user %d: %v", target.ID, err)
+		sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("❌ Failed to promote user: <i>%s</i>\nMake sure the bot has <b>Add new admins</b> permission.", html.EscapeString(err.Error())))
 		return
 	}
 
 	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("⭐ <b>%s</b> has been promoted to Admin!", html.EscapeString(target.FirstName)))
 }
 
-// HandleDemote strips admin privileges from a user
+// HandleDemote strips all admin privileges from a user
 func HandleDemote(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ You must be an administrator to use this command.")
@@ -524,24 +528,41 @@ func HandleDemote(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	}
 
 	target := message.ReplyToMessage.From
-	demoteConfig := tgbotapi.PromoteChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{
-			ChatID: message.Chat.ID,
-			UserID: target.ID,
-		},
-		CanChangeInfo:      false,
-		CanPostMessages:    false,
-		CanEditMessages:    false,
-		CanDeleteMessages:  false,
-		CanInviteUsers:     false,
-		CanRestrictMembers: false,
-		CanPinMessages:     false,
-		CanPromoteMembers:  false,
+
+	// Explicitly pass all boolean fields as "false" via MakeRequest.
+	// tgbotapi.PromoteChatMemberConfig omits false values, which causes Telegram API to leave permissions untouched.
+	demoteParams := tgbotapi.Params{
+		"chat_id":                strconv.FormatInt(message.Chat.ID, 10),
+		"user_id":                strconv.FormatInt(target.ID, 10),
+		"is_anonymous":           "false",
+		"can_manage_chat":        "false",
+		"can_change_info":        "false",
+		"can_post_messages":      "false",
+		"can_edit_messages":      "false",
+		"can_delete_messages":    "false",
+		"can_manage_voice_chats": "false",
+		"can_manage_video_chats": "false",
+		"can_invite_users":       "false",
+		"can_restrict_members":   "false",
+		"can_pin_messages":       "false",
+		"can_promote_members":    "false",
+		"can_post_stories":       "false",
+		"can_edit_stories":       "false",
+		"can_delete_stories":     "false",
+		"can_manage_topics":      "false",
 	}
 
-	_, err := bot.Request(demoteConfig)
+	_, err := bot.MakeRequest("promoteChatMember", demoteParams)
 	if err != nil {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Failed to demote user.")
+		log.Printf("[Demote] Error demoting user %d: %v", target.ID, err)
+		errStr := err.Error()
+		if strings.Contains(strings.ToLower(errStr), "not promoted by bot") || strings.Contains(strings.ToLower(errStr), "creator") {
+			sendHTMLMessage(bot, message.Chat.ID, "❌ <b>Cannot demote:</b> This user was appointed by the Group Creator or another admin. Telegram bots can only demote administrators that were promoted by the bot itself.")
+		} else if strings.Contains(strings.ToLower(errStr), "right") || strings.Contains(strings.ToLower(errStr), "admin") {
+			sendHTMLMessage(bot, message.Chat.ID, "❌ <b>Cannot demote:</b> The bot lacks the required administrator rights (e.g. <i>Add New Admins</i>).")
+		} else {
+			sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("❌ Failed to demote user: <i>%s</i>", html.EscapeString(errStr)))
+		}
 		return
 	}
 
