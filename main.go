@@ -103,6 +103,21 @@ func main() {
 				log.Println("Updates channel closed, exiting...")
 				return
 			}
+			if update.Message != nil {
+				sender := "anonymous/channel"
+				if update.Message.From != nil {
+					sender = fmt.Sprintf("@%s (ID: %d)", update.Message.From.UserName, update.Message.From.ID)
+				}
+				log.Printf("📥 [MESSAGE RECEIVED] Sender: %s, ChatID: %d, Text: %q",
+					sender, update.Message.Chat.ID, update.Message.Text)
+			} else if update.CallbackQuery != nil {
+				sender := "anonymous"
+				if update.CallbackQuery.From != nil {
+					sender = fmt.Sprintf("@%s (ID: %d)", update.CallbackQuery.From.UserName, update.CallbackQuery.From.ID)
+				}
+				log.Printf("📥 [CALLBACK RECEIVED] Sender: %s, Data: %q",
+					sender, update.CallbackQuery.Data)
+			}
 			go handlers.HandleUpdate(bot, update)
 		}
 	}

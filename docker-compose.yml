@@ -1,0 +1,12 @@
+services:
+  minimate-bot:
+    build: .
+    container_name: minimate-bot
+    restart: always
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DATABASE_URL=${DATABASE_URL}
+      - OWNER_ID=${OWNER_ID}
+      - OWNER_USERNAME=${OWNER_USERNAME}
+    env_file:
+      - .env

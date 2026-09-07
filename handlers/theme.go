@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"log"
 	"regexp"
 	"sort"
 	"strings"
@@ -241,19 +242,16 @@ func SafeSend(bot *tgbotapi.BotAPI, chattable tgbotapi.Chattable) (tgbotapi.Mess
 		return msg, nil
 	}
 
-	errLower := strings.ToLower(err.Error())
-	if strings.Contains(errLower, "entities") || strings.Contains(errLower, "emoji") || strings.Contains(errLower, "parse") || strings.Contains(errLower, "tag") {
-		fallbackTry := applyEmojis(chattable, false)
-		resp2, err2 := bot.Request(fallbackTry)
-		if err2 == nil {
-			var msg tgbotapi.Message
-			_ = json.Unmarshal(resp2.Result, &msg)
-			return msg, nil
-		}
-		return tgbotapi.Message{}, err2
+	log.Printf("⚠️ SafeSend initial attempt failed: %v. Retrying without custom emojis...", err)
+	fallbackTry := applyEmojis(chattable, false)
+	resp2, err2 := bot.Request(fallbackTry)
+	if err2 == nil {
+		var msg tgbotapi.Message
+		_ = json.Unmarshal(resp2.Result, &msg)
+		return msg, nil
 	}
-
-	return tgbotapi.Message{}, err
+	log.Printf("❌ SafeSend fallback failed: %v", err2)
+	return tgbotapi.Message{}, err2
 }
 
 func ColoredNotice(statusType string, title string, details string) string {
