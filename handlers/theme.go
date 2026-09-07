@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"html"
 	"regexp"
+	"sort"
 	"strings"
+	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -142,20 +144,20 @@ var EmojiMapping = map[string]string{
 
 // Global Theme Emojis
 var (
-	IconCrown    = "👑"
-	IconShield   = "🛡️"
-	IconSparkles = "✨"
-	IconCheck    = "✅"
-	IconCross    = "❌"
-	IconFlower   = "🌸"
-	IconBolt     = "⚡"
-	IconLock     = "🔒"
-	IconWarning  = "⚠️"
-	IconBroom    = "🧹"
-	IconRobot    = "🤖"
-	IconPin      = "📌"
-	IconStats    = "📊"
-	IconGear     = "⚙️"
+	IconCrown    = CustomEmoji("👑")
+	IconShield   = CustomEmoji("🛡️")
+	IconSparkles = CustomEmoji("✨")
+	IconCheck    = CustomEmoji("✅")
+	IconCross    = CustomEmoji("❌")
+	IconFlower   = CustomEmoji("🌸")
+	IconBolt     = CustomEmoji("⚡")
+	IconLock     = CustomEmoji("🔒")
+	IconWarning  = CustomEmoji("⚠️")
+	IconBroom    = CustomEmoji("🧹")
+	IconRobot    = CustomEmoji("🤖")
+	IconPin      = CustomEmoji("📌")
+	IconStats    = CustomEmoji("📊")
+	IconGear     = CustomEmoji("⚙️")
 )
 
 // CustomEmoji converts an emoji to a Telegram custom emoji tag using verified IDs
@@ -173,16 +175,41 @@ func StripCustomEmojis(text string) string {
 	return tgEmojiRegex.ReplaceAllString(text, "$1")
 }
 
-// ReplaceEmojis automatically scans any HTML string and transforms standard emojis into custom emojis
+var (
+	compiledEmojiRegex *regexp.Regexp
+	emojiRegexOnce     sync.Once
+)
+
+func getEmojiRegex() *regexp.Regexp {
+	emojiRegexOnce.Do(func() {
+		// Sort keys by byte length descending so longer composite emojis match first
+		keys := make([]string, 0, len(EmojiMapping))
+		for k := range EmojiMapping {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			return len(keys[i]) > len(keys[j])
+		})
+
+		var parts []string
+		for _, k := range keys {
+			parts = append(parts, regexp.QuoteMeta(k))
+		}
+		compiledEmojiRegex = regexp.MustCompile(strings.Join(parts, "|"))
+	})
+	return compiledEmojiRegex
+}
+
+// ReplaceEmojis safely transforms standard emojis into Telegram custom emojis in a single pass without nesting
 func ReplaceEmojis(text string) string {
 	cleanText := StripCustomEmojis(text)
-	for emoji, id := range EmojiMapping {
-		if strings.Contains(cleanText, emoji) {
-			tag := fmt.Sprintf(`<tg-emoji emoji-id="%s">%s</tg-emoji>`, id, emoji)
-			cleanText = strings.ReplaceAll(cleanText, emoji, tag)
+	re := getEmojiRegex()
+	return re.ReplaceAllStringFunc(cleanText, func(match string) string {
+		if id, ok := EmojiMapping[match]; ok && id != "" {
+			return fmt.Sprintf(`<tg-emoji emoji-id="%s">%s</tg-emoji>`, id, match)
 		}
-	}
-	return cleanText
+		return match
+	})
 }
 
 // SafeSend sends or edits a message with automatic custom emoji injection and fallback
