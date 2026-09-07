@@ -100,19 +100,19 @@ func getStartKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("👥 Member Commands", "tab_member_cmds"),
-			tgbotapi.NewInlineKeyboardButtonData("🛡️ Admin Commands", "tab_admin_cmds"),
+			tgbotapi.NewInlineKeyboardButtonData("🔨 Moderation", "tab_admin_mod"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🔐 Security & Locks", "tab_admin_locks"),
-			tgbotapi.NewInlineKeyboardButtonData("👑 VIP & Owner", "tab_admin_vip"),
+			tgbotapi.NewInlineKeyboardButtonData("🧹 Tools & Greetings", "tab_admin_tools"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("👨‍💻 Owner Profile", "tab_owner"),
+			tgbotapi.NewInlineKeyboardButtonData("👑 VIP Status", "tab_vip"),
 			tgbotapi.NewInlineKeyboardButtonData("ℹ️ Bot Info", "tab_info"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonURL("➕ Add to Group", addURL),
-			tgbotapi.NewInlineKeyboardButtonURL("💬 Contact Owner", ownerURL),
+			tgbotapi.NewInlineKeyboardButtonURL("💬 Contact Support", ownerURL),
 		),
 	)
 }
@@ -120,7 +120,7 @@ func getStartKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 func getCommandsDirectoryKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("👥 Member Commands", "tab_member_cmds"),
+			tgbotapi.NewInlineKeyboardButtonData("👥 Member", "tab_member_cmds"),
 			tgbotapi.NewInlineKeyboardButtonData("🔨 Moderation", "tab_admin_mod"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
@@ -128,7 +128,7 @@ func getCommandsDirectoryKeyboard(botUsername string) tgbotapi.InlineKeyboardMar
 			tgbotapi.NewInlineKeyboardButtonData("🧹 Tools & Greetings", "tab_admin_tools"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("👑 VIP & Owner", "tab_admin_vip"),
+			tgbotapi.NewInlineKeyboardButtonData("👑 VIP Status", "tab_vip"),
 			tgbotapi.NewInlineKeyboardButtonData("🔙 « Main Menu", "tab_home"),
 		),
 	)
@@ -140,11 +140,15 @@ func getSubmenuKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("👥 Member Cmds", "tab_member_cmds"),
-			tgbotapi.NewInlineKeyboardButtonData("🛡️ Admin Cmds", "tab_admin_cmds"),
+			tgbotapi.NewInlineKeyboardButtonData("🔨 Moderation", "tab_admin_mod"),
 			tgbotapi.NewInlineKeyboardButtonData("🔐 Locks", "tab_admin_locks"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🧹 Tools", "tab_admin_tools"),
+			tgbotapi.NewInlineKeyboardButtonData("👑 VIP", "tab_vip"),
 			tgbotapi.NewInlineKeyboardButtonData("🔙 « Main Menu", "tab_home"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonURL("➕ Add to Group", addURL),
 		),
 	)
@@ -200,7 +204,7 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		keyboard = getStartKeyboard(botUsername)
 
 	case "tab_commands":
-		newText = `📋 <b>𝐂𝐨𝐦𝐦𝐚𝐧𝐝𝐬 𝐃𝐢𝐫𝐞𝐜𝐭𝐨𝐫𝐲 𝐂𝐚𝐭𝐞𝐠𝐨𝐫𝐢𝐞𝐬</b>
+		newText = fmt.Sprintf(`📋 <b>𝐂𝐨𝐦𝐦𝐚𝐧𝐝𝐬 𝐃𝐢𝐫𝐞𝐜𝐭𝐨𝐫𝐲 𝐂𝐚𝐭𝐞𝐠𝐨𝐫𝐢𝐞𝐬</b>
 
 <blockquote expandable>Select a category below to explore specific tools and usage:
 
@@ -208,15 +212,15 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 • <b>🔨 Moderation:</b> Ban, mute, kick, warns, unban
 • <b>🔐 Locks & Captcha:</b> Anti-link, anti-forward, math verification
 • <b>🧹 Tools & Greetings:</b> Purge, pin, welcome cards, group rules
-• <b>👑 VIP & Owner:</b> Subscription manager and owner controls</blockquote>`
+• <b>👑 VIP Status:</b> Premium group subscription details</blockquote>`)
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_member_cmds":
-		newText = `👥 <b>𝐆𝐞𝐧𝐞𝐫𝐚𝐥 & 𝐌𝐞𝐦𝐛𝐞𝐫 𝐂𝐨𝐦𝐦𝐚𝐧𝐝𝐬</b>
+		newText = fmt.Sprintf(`👥 <b>𝐆𝐞𝐧𝐞𝐫𝐚𝐥 & 𝐌𝐞𝐦𝐛𝐞𝐫 𝐂𝐨𝐦𝐦𝐚𝐧𝐝𝐬</b>
 
 <blockquote expandable>• <code>/start</code> — Open main bot menu
 • <code>/ping</code> — Check bot latency & status
-• <code>/help</code> — Open commands directory
+• <code>/help</code> (or <code>/commands</code>) — Open commands directory
 • <code>/info</code> — View your Telegram ID & account details
 • <code>/id</code> — Get your ID or replied user's ID
 • <code>/rules</code> — Read current group rules
@@ -224,12 +228,12 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 • <code>/warns</code> — Check your warning strike count
 • <code>/filters</code> — List all active group auto-reply filters
 • <code>/notes</code> — List saved group notes
-• <code>/get &lt;name&gt;</code> — Fetch and read a saved note
-• <code>/premium</code> — Check group VIP status & expiry</blockquote>`
+• <code>/get &lt;name&gt;</code> — Fetch and read a saved note or media
+• <code>/premium</code> (or <code>/checkvip</code>) — Check group VIP status & expiry</blockquote>`)
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_admin_cmds":
-		newText = `🛡️ <b>𝐀𝐝𝐦𝐢𝐧 𝐌𝐚𝐬𝐭𝐞𝐫 𝐃𝐢𝐫𝐞𝐜𝐭𝐨𝐫𝐲</b>
+		newText = fmt.Sprintf(`🛡️ <b>𝐀𝐝𝐦𝐢𝐧 𝐌𝐚𝐬𝐭𝐞𝐫 𝐃𝐢𝐫𝐞𝐜𝐭𝐨𝐫𝐲</b>
 
 <blockquote expandable><b>🔨 Moderation:</b>
 • <code>/ban</code>, <code>/tban &lt;time&gt;</code>, <code>/unban</code>, <code>/kick</code>
@@ -237,16 +241,18 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 • <code>/warn</code>, <code>/dwarn</code>, <code>/unwarn</code>, <code>/rmwarns</code>
 
 <b>🔐 Security & Protection:</b>
-• <code>/lock &lt;type&gt;</code>, <code>/unlock &lt;type&gt;</code>, <code>/locks</code>
-• <code>/captcha &lt;on/off&gt;</code>, <code>/captchamode &lt;button|math&gt;</code>
+• <code>/lock &lt;type&gt;</code>, <code>/unlock &lt;type&gt;</code>, <code>/locks</code>, <code>/locktypes</code>
+• <code>/captcha &lt;on/off&gt;</code>, <code>/captchamode &lt;button|math&gt;</code>, <code>/captchatime &lt;sec&gt;</code>
 
 <b>🧹 Tools & Messages:</b>
 • <code>/purge</code>, <code>/del</code>, <code>/pin</code>, <code>/unpin</code>, <code>/unpinall</code>
-• <code>/setrules</code>, <code>/clearrules</code>, <code>/welcome</code>, <code>/setwelcome</code></blockquote>`
+• <code>/setrules</code>, <code>/clearrules</code>, <code>/welcome</code>, <code>/setwelcome</code>, <code>/rmwelcome</code>
+• <code>/goodbye</code>, <code>/setgoodbye</code>, <code>/rmgoodbye</code>
+• <code>/filter &lt;word&gt; &lt;reply&gt;</code>, <code>/stop &lt;word&gt;</code></blockquote>`)
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_admin_mod":
-		newText = `🔨 <b>𝐌𝐨𝐝𝐞𝐫𝐚𝐭𝐢𝐨𝐧 & 𝐏𝐮𝐧𝐢𝐬𝐡𝐦𝐞𝐧𝐭𝐬</b>
+		newText = fmt.Sprintf(`🔨 <b>𝐌𝐨𝐝𝐞𝐫𝐚𝐭𝐢𝐨𝐧 & 𝐏𝐮𝐧𝐢𝐬𝐡𝐦𝐞𝐧𝐭𝐬</b>
 <i>(Reply to a user's message to execute)</i>
 
 <blockquote expandable>• <code>/ban</code> — Permanently bans replied user
@@ -256,10 +262,10 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 • <code>/mute</code> — Permanently mutes replied user
 • <code>/tmute &lt;time&gt;</code> — Temporary mute (e.g. <code>/tmute 30m</code>, <code>/tmute 2h</code>)
 • <code>/unmute</code> — Restores all chat permissions
-• <code>/warn [reason]</code> — Issues a warning strike (auto-ban at 3)
+• <code>/warn [reason]</code> — Issues a warning strike (auto-ban at 3 strikes)
 • <code>/dwarn [reason]</code> — Deletes message and issues a warning strike
-• <code>/unwarn</code> — Removes 1 warning strike
-• <code>/rmwarns</code> — Resets all strikes for replied user</blockquote>`
+• <code>/unwarn</code> — Removes 1 warning strike from user
+• <code>/rmwarns</code> — Resets all warning strikes for replied user</blockquote>`)
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_admin_locks":
@@ -270,10 +276,11 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 • <code>/lock forwards</code> — Blocks forwarded messages
 • <code>/lock stickers</code> — Blocks stickers and GIF animations
 • <code>/lock media</code> — Blocks photos, videos, files and voice notes
-• <code>/lock bots</code> — Automatically bans newly added userbots
+• <code>/lock bots</code> — Automatically bans newly added unauthorized bots
 • <code>/lock all</code> — Enables all security locks at once
 • <code>/unlock &lt;type&gt;</code> — Unlocks specified category
 • <code>/locks</code> — View active group lock status
+• <code>/locktypes</code> — List all available lock types
 
 <b>🤖 Automated Captcha:</b>
 • <code>/captcha &lt;on/off&gt;</code> — Enable/disable join verification
@@ -282,55 +289,45 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
 	case "tab_admin_tools":
-		newText = `🧹 <b>𝐂𝐡𝐚𝐭 𝐓𝐨𝐨𝐥𝐬, 𝐂𝐥𝐞𝐚𝐧𝐮𝐩 & 𝐆𝐫𝐞𝐞𝐭𝐢𝐧𝐠𝐬</b>
+		newText = fmt.Sprintf(`🧹 <b>𝐂𝐡𝐚𝐭 𝐓𝐨𝐨𝐥𝐬, 𝐂𝐥𝐞𝐚𝐧𝐮𝐩 & 𝐆𝐫𝐞𝐞𝐭𝐢𝐧𝐠𝐬</b>
 
 <blockquote expandable><b>🧹 Cleanup & Pinning:</b>
 • <code>/purge</code> — Reply to a message to delete all messages down to command
 • <code>/del</code> — Deletes replied message
-• <code>/pin</code> — Pins replied message
+• <code>/pin</code> — Pins replied message in group
 • <code>/unpin</code> — Unpins replied message
 • <code>/unpinall</code> — Unpins all pinned messages in group
 
 <b>🌸 Welcome & Goodbye Cards:</b>
 • <code>/welcome &lt;on/off&gt;</code> — Toggle join greetings
-• <code>/setwelcome &lt;text&gt;</code> — Set custom card (tags: <code>{first}</code>, <code>{username}</code>, <code>{chatname}</code>)
+• <code>/setwelcome &lt;text&gt;</code> — Set custom card (tags: <code>{first}</code>, <code>{username}</code>, <code>{chatname}</code>, <code>{id}</code>)
 • <code>/rmwelcome</code> — Remove and disable welcome card
 • <code>/goodbye &lt;on/off&gt;</code> — Toggle leave messages
 • <code>/setgoodbye &lt;text&gt;</code> — Set custom goodbye message
+• <code>/rmgoodbye</code> — Remove goodbye card
 
 <b>📜 Rules & Filters:</b>
 • <code>/setrules &lt;text&gt;</code> — Save group rules
 • <code>/clearrules</code> — Remove group rules
-• <code>/filter &lt;word&gt; &lt;reply&gt;</code> — Add instant 0ms auto-reply filter
-• <code>/stop &lt;word&gt;</code> — Remove an auto-reply filter</blockquote>`
+• <code>/filter &lt;word&gt; &lt;reply&gt;</code> — Save text or media filter (photo/video/gif/sticker)
+• <code>/stop &lt;word&gt;</code> — Remove an auto-reply filter</blockquote>`)
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
 
-	case "tab_admin_vip":
-		newText = fmt.Sprintf(`%s <b>𝐕𝐈𝐏 𝐒𝐮𝐛𝐬𝐜𝐫𝐢𝐩𝐭𝐢𝐨𝐧𝐬 & 𝐎𝐰𝐧𝐞𝐫 𝐓𝐨𝐨𝐥𝐬</b>
+	case "tab_vip":
+		newText = fmt.Sprintf(`%s <b>𝐕𝐈𝐏 𝐏𝐫𝐞𝐦𝐢𝐮𝐦 𝐒𝐮𝐛𝐬𝐜𝐫𝐢𝐩𝐭𝐢𝐨𝐧</b>
 
-<blockquote expandable><b>👑 VIP & Subscription Management:</b>
-• <code>/premium</code> (or <code>/checkvip</code>) — Check group VIP status & expiry
-• <code>/setvip &lt;chat_id&gt; &lt;days&gt;</code> — Activate VIP Pro for a group (0 for lifetime)
-• <code>/rmvip &lt;chat_id&gt;</code> — Revoke VIP status
+<blockquote expandable><b>💎 Premium Group Features:</b>
+• ⚡ <b>Zero-Latency Priority Engine:</b> Instantaneous filter matching
+• 🛡️ <b>Advanced Anti-Raid Shield:</b> High-speed join flood protection
+• 🎨 <b>Custom Greeting Graphics:</b> Animated banner card integration
+• 📊 <b>Extended Group Limits:</b> Unlimited custom filters and notes
 
-<b>👨‍💻 Bot Owner Exclusive Commands:</b>
-• <code>/dashboard</code> (or <code>/stats</code>) — Live bot performance & database metrics
-• <code>/spam</code> (or <code>/chats</code>) — Complete directory of all active groups</blockquote>`, IconCrown)
+<b>🔍 Check Subscription:</b>
+• Use <code>/premium</code> (or <code>/checkvip</code>) to view this chat's VIP status & expiry date.
+
+💬 <i>Contact @%s to activate VIP Pro for your group!</i></blockquote>`,
+			IconCrown, html.EscapeString(config.OwnerUsername))
 		keyboard = getCommandsDirectoryKeyboard(botUsername)
-
-	case "tab_owner":
-		newText = fmt.Sprintf(`👨‍💻 <b>𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 𝐎𝐰𝐧𝐞𝐫 & 𝐃𝐞𝐯𝐞𝐥𝐨𝐩𝐞𝐫 𝐏𝐫𝐨𝐟𝐢𝐥𝐞</b>
-
-<blockquote expandable>%s <b>Developer:</b> @%s
-🌐 <b>Project:</b> MiniMate Bot
-%s <b>Tech Stack:</b> Go (Golang) + Supabase PostgreSQL
-%s <b>Support & Business:</b> Contact directly for custom bot integrations, VIP activations & partnerships.</blockquote>
-
-👇 <i>Click below to direct message or explore developer channels:</i>`,
-			IconCrown, html.EscapeString(config.OwnerUsername),
-			IconBolt,
-			IconShield)
-		keyboard = getSubmenuKeyboard(botUsername)
 
 	case "tab_info":
 		uptime := time.Since(botStartTime).Round(time.Second)
@@ -356,7 +353,7 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		editCaption := tgbotapi.NewEditMessageCaption(chatID, messageID, newText)
 		editCaption.ParseMode = "HTML"
 		editCaption.ReplyMarkup = &keyboard
-		_, err := bot.Send(editCaption)
+		_, err := SafeSend(bot, editCaption)
 		if err != nil {
 			log.Printf("Failed to edit menu caption: %v", err)
 		}
@@ -364,7 +361,7 @@ func handleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		editText := tgbotapi.NewEditMessageText(chatID, messageID, newText)
 		editText.ParseMode = "HTML"
 		editText.ReplyMarkup = &keyboard
-		_, err := bot.Send(editText)
+		_, err := SafeSend(bot, editText)
 		if err != nil {
 			log.Printf("Failed to edit menu text: %v", err)
 		}
@@ -414,26 +411,26 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 			videoMsg.ParseMode = "HTML"
 			videoMsg.ReplyMarkup = keyboard
 
-			_, err := bot.Send(videoMsg)
+			_, err := SafeSend(bot, videoMsg)
 			if err != nil {
 				fallback := tgbotapi.NewMessage(chatID, startText)
 				fallback.ParseMode = "HTML"
 				fallback.ReplyMarkup = keyboard
-				bot.Send(fallback)
+				SafeSend(bot, fallback)
 			}
 		} else {
-			videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FileID("BAACAgUAAxkDAAMmapu-vHWqXcAkgRXpttuUgKLfR_AAAncgAALRZ-FUEDTPfZlCwTk9BA"))
+			videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FilePath("Intro.mp4"))
 			videoMsg.Caption = startText
 			videoMsg.ParseMode = "HTML"
 			videoMsg.ReplyMarkup = keyboard
 
-			sentMsg, err := bot.Send(videoMsg)
+			sentMsg, err := SafeSend(bot, videoMsg)
 			if err != nil {
 				log.Printf("Failed to send start video: %v (falling back to text menu)", err)
 				fallback := tgbotapi.NewMessage(chatID, startText)
 				fallback.ParseMode = "HTML"
 				fallback.ReplyMarkup = keyboard
-				bot.Send(fallback)
+				SafeSend(bot, fallback)
 			} else if sentMsg.Video != nil {
 				videoFileIDMutex.Lock()
 				startVideoFileID = sentMsg.Video.FileID
@@ -458,7 +455,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		msg := tgbotapi.NewMessage(chatID, helpText)
 		msg.ParseMode = "HTML"
 		msg.ReplyMarkup = getCommandsDirectoryKeyboard(bot.Self.UserName)
-		bot.Send(msg)
+		SafeSend(bot, msg)
 		sendReply = false
 
 	case "owner", "creator":
@@ -478,7 +475,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 				tgbotapi.NewInlineKeyboardButtonURL("💬 Contact Owner", fmt.Sprintf("https://t.me/%s", config.OwnerUsername)),
 			),
 		)
-		bot.Send(msg)
+		SafeSend(bot, msg)
 		sendReply = false
 
 	case "dashboard", "stats":
@@ -522,12 +519,15 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 
 	case "ping":
 		apiStart := time.Now()
-		msg := tgbotapi.NewMessage(chatID, "Pinging...")
-		sentMsg, err := bot.Send(msg)
+		msg := tgbotapi.NewMessage(chatID, "⚡ Pinging...")
+		msg.ParseMode = "HTML"
+		sentMsg, err := SafeSend(bot, msg)
 		if err == nil {
 			apiDuration := time.Since(apiStart).Milliseconds()
 			internalLatency := time.Since(start).Milliseconds()
-			bot.Send(tgbotapi.NewEditMessageText(chatID, sentMsg.MessageID, fmt.Sprintf("Pong!\n\n• API Roundtrip: %dms\n• Internal Routing: %dms", apiDuration, internalLatency)))
+			editText := tgbotapi.NewEditMessageText(chatID, sentMsg.MessageID, fmt.Sprintf("⚡ <b>Pong!</b>\n\n• ⏱️ <b>API Roundtrip:</b> <code>%dms</code>\n• 🚀 <b>Internal Routing:</b> <code>%dms</code>", apiDuration, internalLatency))
+			editText.ParseMode = "HTML"
+			SafeSend(bot, editText)
 		}
 		sendReply = false
 
@@ -655,7 +655,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 
 	if sendReply {
 		reply.ReplyToMessageID = message.MessageID
-		_, err := bot.Send(reply)
+		_, err := SafeSend(bot, reply)
 		if err != nil {
 			log.Printf("Failed to dispatch /%s: %v", command, err)
 		}
