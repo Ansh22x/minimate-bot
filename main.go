@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,7 +16,7 @@ import (
 )
 
 func main() {
-	// 1. Start HTTP Server immediately for Render Web Service 24/7 port binding
+	// 1. Immediately launch HTTP Health Check Server for Render 24/7 port binding
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -23,7 +24,7 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("✅ MiniMate Bot is live and running 24/7!"))
+		fmt.Fprintf(w, "🌸 MiniMate Bot is Online 24/7!\nStatus: Healthy & Active")
 	})
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -66,30 +67,43 @@ func main() {
 		{Command: "filters", Description: "List chat filters"},
 		{Command: "notes", Description: "List saved notes"},
 	}
-	bot.Request(tgbotapi.NewSetMyCommands(botCommands...))
+	_, err = bot.Request(tgbotapi.NewSetMyCommands(botCommands...))
+	if err != nil {
+		log.Printf("Warning: Failed to set bot commands: %v", err)
+	}
 
-	// 5. Setup Long Polling Update Stream
+	// 5. Clear any active webhook to guarantee clean long polling
+	_, err = bot.Request(tgbotapi.DeleteWebhookConfig{DropPendingUpdates: false})
+	if err != nil {
+		log.Printf("Notice: Webhook cleanup returned: %v", err)
+	} else {
+		log.Println("✅ Webhook cleared, long-polling ready.")
+	}
+
+	// 6. Configure Long Polling
 	updateConfig := tgbotapi.NewUpdate(0)
 	updateConfig.Timeout = 60
-
 	updates := bot.GetUpdatesChan(updateConfig)
 
-	// 6. Graceful Shutdown Signal Handling
+	// Listen for OS interrupt signals for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		log.Println("🛑 Shutting down gracefully...")
-		bot.StopReceivingUpdates()
-		database.CloseDB()
-		os.Exit(0)
-	}()
 
 	log.Println("⚡ MiniMate is online and actively listening for updates...")
 
 	// 7. Event Dispatcher Loop
-	for update := range updates {
-		go handlers.HandleUpdate(bot, update)
+	for {
+		select {
+		case sig := <-sigChan:
+			log.Printf("Received signal %v, shutting down...", sig)
+			bot.StopReceivingUpdates()
+			return
+		case update, ok := <-updates:
+			if !ok {
+				log.Println("Updates channel closed, exiting...")
+				return
+			}
+			go handlers.HandleUpdate(bot, update)
+		}
 	}
 }
