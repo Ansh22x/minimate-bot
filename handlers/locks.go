@@ -136,7 +136,7 @@ func CheckMessageLocks(bot *tgbotapi.BotAPI, message *tgbotapi.Message) bool {
 				html.EscapeString(userName), reason)
 			msg := tgbotapi.NewMessage(chatID, noticeText)
 			msg.ParseMode = "HTML"
-			sent, err := bot.Send(msg)
+			sent, err := SafeSend(bot, msg)
 			if err == nil {
 				time.Sleep(5 * time.Second)
 				bot.Request(tgbotapi.NewDeleteMessage(chatID, sent.MessageID))
@@ -159,7 +159,9 @@ func HandleLockCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 	}
 
 	if !isAdmin(bot, chatID, fromID) {
-		bot.Send(tgbotapi.NewMessage(chatID, "❌ Only group administrators can configure security locks."))
+		msg := tgbotapi.NewMessage(chatID, "❌ Only group administrators can configure security locks.")
+		msg.ParseMode = "HTML"
+		SafeSend(bot, msg)
 		return
 	}
 
@@ -179,7 +181,7 @@ func HandleLockCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 <code>/unlock forwards</code>`
 		msg := tgbotapi.NewMessage(chatID, help)
 		msg.ParseMode = "HTML"
-		bot.Send(msg)
+			SafeSend(bot, msg)
 
 	case "locks":
 		s := getLocks(chatID)
@@ -209,14 +211,14 @@ func HandleLockCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 
 		msg := tgbotapi.NewMessage(chatID, text)
 		msg.ParseMode = "HTML"
-		bot.Send(msg)
+			SafeSend(bot, msg)
 
 	case "lock", "unlock":
 		targetType := strings.ToLower(strings.TrimSpace(args))
 		if targetType == "" {
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Usage: <code>/%s &lt;links|forwards|stickers|media|bots|all&gt;</code>\nUse <code>/locktypes</code> for full directory.", cmd))
 			msg.ParseMode = "HTML"
-			bot.Send(msg)
+				SafeSend(bot, msg)
 			return
 		}
 
@@ -245,7 +247,7 @@ func HandleLockCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 		default:
 			msg := tgbotapi.NewMessage(chatID, "❌ Invalid lock type. Use <code>/locktypes</code> to see all options.")
 			msg.ParseMode = "HTML"
-			bot.Send(msg)
+				SafeSend(bot, msg)
 			return
 		}
 
@@ -280,6 +282,6 @@ func HandleLockCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 
 		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ <b>%s</b> is now <b>%s</b>.", html.EscapeString(targetType), actionStr))
 		msg.ParseMode = "HTML"
-		bot.Send(msg)
+			SafeSend(bot, msg)
 	}
 }

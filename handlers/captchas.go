@@ -136,7 +136,7 @@ Please verify that you are human by clicking the button below within <b>%d secon
 	msg.ParseMode = "HTML"
 	msg.ReplyMarkup = keyboard
 
-	sentMsg, err := bot.Send(msg)
+	sentMsg, err := SafeSend(bot, msg)
 	if err != nil {
 		log.Printf("Failed to send captcha message: %v", err)
 		return
@@ -234,7 +234,7 @@ func HandleCaptchaCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) 
 	editText := tgbotapi.NewEditMessageText(chatID, query.Message.MessageID,
 		fmt.Sprintf("✅ <b>%s</b> passed verification and is now allowed to chat!", html.EscapeString(query.From.FirstName)))
 	editText.ParseMode = "HTML"
-	bot.Send(editText)
+	SafeSend(bot, editText)
 
 	go func() {
 		time.Sleep(4 * time.Second)
@@ -255,7 +255,9 @@ func HandleCaptchaCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd s
 	}
 
 	if !isAdmin(bot, chatID, fromID) {
-		bot.Send(tgbotapi.NewMessage(chatID, "❌ Only group administrators can configure Captcha."))
+		msg := tgbotapi.NewMessage(chatID, "❌ Only group administrators can configure Captcha.")
+		msg.ParseMode = "HTML"
+		SafeSend(bot, msg)
 		return
 	}
 
@@ -270,7 +272,7 @@ func HandleCaptchaCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd s
 			}
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("🤖 <b>Captcha Verification:</b> <code>%s</code>\nMode: <code>%s</code> | Timeout: <code>%ds</code>\n\nUsage: <code>/captcha &lt;on/off&gt;</code>", statusStr, s.Mode, s.TimeoutSeconds))
 			msg.ParseMode = "HTML"
-			bot.Send(msg)
+			SafeSend(bot, msg)
 			return
 		}
 
@@ -281,12 +283,14 @@ func HandleCaptchaCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd s
 		if strings.TrimSpace(args) == "" {
 			msg := tgbotapi.NewMessage(chatID, "❌ Usage: <code>/captchatime &lt;seconds&gt;</code> (e.g. <code>/captchatime 120</code>)")
 			msg.ParseMode = "HTML"
-			bot.Send(msg)
+			SafeSend(bot, msg)
 			return
 		}
 		val, err := strconv.Atoi(strings.TrimSpace(args))
 		if err != nil || val < 30 || val > 600 {
-			bot.Send(tgbotapi.NewMessage(chatID, "❌ Timeout must be between 30 and 600 seconds."))
+			msg := tgbotapi.NewMessage(chatID, "❌ Timeout must be between 30 and 600 seconds.")
+			msg.ParseMode = "HTML"
+			SafeSend(bot, msg)
 			return
 		}
 		s.TimeoutSeconds = val
@@ -296,13 +300,15 @@ func HandleCaptchaCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd s
 		if mode != "button" && mode != "math" {
 			msg := tgbotapi.NewMessage(chatID, "❌ Usage: <code>/captchamode &lt;button|math&gt;</code>")
 			msg.ParseMode = "HTML"
-			bot.Send(msg)
+			SafeSend(bot, msg)
 			return
 		}
 		s.Mode = mode
 
 	case "captchakick":
-		bot.Send(tgbotapi.NewMessage(chatID, "⚙️ Auto-kick on captcha failure is enabled by default."))
+		msg := tgbotapi.NewMessage(chatID, "⚙️ Auto-kick on captcha failure is enabled by default.")
+		msg.ParseMode = "HTML"
+		SafeSend(bot, msg)
 		return
 	}
 
@@ -316,7 +322,9 @@ func HandleCaptchaCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd s
 	`
 	_, err := database.Pool.Exec(context.Background(), query, chatID, s.Enabled, s.TimeoutSeconds, s.Mode)
 	if err != nil {
-		bot.Send(tgbotapi.NewMessage(chatID, "❌ Database error updating captcha configuration."))
+		msg := tgbotapi.NewMessage(chatID, "❌ Database error updating captcha configuration.")
+		msg.ParseMode = "HTML"
+		SafeSend(bot, msg)
 		return
 	}
 
@@ -326,5 +334,5 @@ func HandleCaptchaCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd s
 
 	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ <b>Captcha Configuration Updated:</b>\n• Enabled: <code>%t</code>\n• Mode: <code>%s</code>\n• Timeout: <code>%ds</code>", s.Enabled, s.Mode, s.TimeoutSeconds))
 	msg.ParseMode = "HTML"
-	bot.Send(msg)
+	SafeSend(bot, msg)
 }

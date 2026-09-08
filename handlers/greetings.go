@@ -42,7 +42,9 @@ func HandleNewMembers(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 		text = strings.ReplaceAll(text, "{id}", fmt.Sprintf("%d", newMember.ID))
 		text = strings.ReplaceAll(text, "{chatname}", message.Chat.Title)
 
-		bot.Send(tgbotapi.NewMessage(chatID, text))
+		msg := tgbotapi.NewMessage(chatID, text)
+		msg.ParseMode = "HTML"
+		SafeSend(bot, msg)
 	}
 }
 
@@ -76,7 +78,9 @@ func HandleLeftMember(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	text = strings.ReplaceAll(text, "{id}", fmt.Sprintf("%d", leftMember.ID))
 	text = strings.ReplaceAll(text, "{chatname}", message.Chat.Title)
 
-	bot.Send(tgbotapi.NewMessage(chatID, text))
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "HTML"
+	SafeSend(bot, msg)
 }
 
 // HandleGreetingCommand processes /welcome, /setwelcome, /rmwelcome, /goodbye, etc.
@@ -90,7 +94,9 @@ func HandleGreetingCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd 
 	}
 
 	if !isAdmin(bot, chatID, fromID) {
-		bot.Send(tgbotapi.NewMessage(chatID, "❌ Only admins can configure greetings."))
+		msg := tgbotapi.NewMessage(chatID, "❌ Only admins can configure greetings.")
+		msg.ParseMode = "HTML"
+		SafeSend(bot, msg)
 		return
 	}
 
@@ -99,7 +105,7 @@ func HandleGreetingCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd 
 		if strings.TrimSpace(args) == "" {
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Usage: <code>/%s &lt;on/off&gt;</code>", html.EscapeString(cmd)))
 			msg.ParseMode = "HTML"
-			bot.Send(msg)
+			SafeSend(bot, msg)
 			return
 		}
 
@@ -120,16 +126,18 @@ func HandleGreetingCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd 
 			}
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ <b>%s</b> is now turned <b>%s</b>.", html.EscapeString(cmd), statusStr))
 			msg.ParseMode = "HTML"
-			bot.Send(msg)
+			SafeSend(bot, msg)
 		} else {
-			bot.Send(tgbotapi.NewMessage(chatID, "❌ Database error updating greeting settings."))
+			msg := tgbotapi.NewMessage(chatID, "❌ Database error updating greeting settings.")
+			msg.ParseMode = "HTML"
+			SafeSend(bot, msg)
 		}
 
 	case "setwelcome", "setgoodbye":
 		if strings.TrimSpace(args) == "" {
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Usage: <code>/%s &lt;text&gt;</code>\nVariables: <code>{first}</code>, <code>{username}</code>, <code>{id}</code>, <code>{chatname}</code>", html.EscapeString(cmd)))
 			msg.ParseMode = "HTML"
-			bot.Send(msg)
+			SafeSend(bot, msg)
 			return
 		}
 
@@ -149,9 +157,11 @@ func HandleGreetingCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd 
 		if err == nil {
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ <b>%s</b> message saved and enabled!", html.EscapeString(cmd)))
 			msg.ParseMode = "HTML"
-			bot.Send(msg)
+			SafeSend(bot, msg)
 		} else {
-			bot.Send(tgbotapi.NewMessage(chatID, "❌ Database error saving greeting message."))
+			msg := tgbotapi.NewMessage(chatID, "❌ Database error saving greeting message.")
+			msg.ParseMode = "HTML"
+			SafeSend(bot, msg)
 		}
 
 	case "rmwelcome", "rmgoodbye":
@@ -171,13 +181,16 @@ func HandleGreetingCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd 
 		if err == nil {
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("🗑️ <b>%s</b> has been removed and disabled.", html.EscapeString(cmd)))
 			msg.ParseMode = "HTML"
-			bot.Send(msg)
+			SafeSend(bot, msg)
 		} else {
-			bot.Send(tgbotapi.NewMessage(chatID, "❌ Database error removing greeting."))
+			msg := tgbotapi.NewMessage(chatID, "❌ Database error removing greeting.")
+			msg.ParseMode = "HTML"
+			SafeSend(bot, msg)
 		}
 
 	case "welcomeclean", "cleanwelcome":
 		msg := tgbotapi.NewMessage(chatID, "🧹 Welcome message auto-cleanup is scheduled for Phase 2.")
-		bot.Send(msg)
+		msg.ParseMode = "HTML"
+		SafeSend(bot, msg)
 	}
 }

@@ -114,7 +114,7 @@ func parseDuration(durationStr string) (int64, error) {
 func sendHTMLMessage(bot *tgbotapi.BotAPI, chatID int64, text string) (tgbotapi.Message, error) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = "HTML"
-	return bot.Send(msg)
+	return SafeSend(bot, msg)
 }
 
 // -------------------------
