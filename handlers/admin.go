@@ -492,24 +492,45 @@ func HandlePromote(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	}
 
 	target := message.ReplyToMessage.From
-	promoteConfig := tgbotapi.PromoteChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{
-			ChatID: message.Chat.ID,
-			UserID: target.ID,
-		},
-		CanChangeInfo:       false,
-		CanDeleteMessages:   true,
-		CanInviteUsers:      true,
-		CanRestrictMembers:  true,
-		CanPinMessages:      true,
-		CanPromoteMembers:   false,
-		CanManageVoiceChats: true,
+
+	var err error
+	if message.Chat.IsChannel() {
+		promoteParams := tgbotapi.Params{
+			"chat_id":             strconv.FormatInt(message.Chat.ID, 10),
+			"user_id":             strconv.FormatInt(target.ID, 10),
+			"can_manage_chat":     "true",
+			"can_post_messages":   "true",
+			"can_edit_messages":   "true",
+			"can_delete_messages": "true",
+			"can_invite_users":    "true",
+			"can_change_info":     "false",
+			"can_promote_members": "false",
+		}
+		_, err = bot.MakeRequest("promoteChatMember", promoteParams)
+	} else {
+		promoteParams := tgbotapi.Params{
+			"chat_id":                strconv.FormatInt(message.Chat.ID, 10),
+			"user_id":                strconv.FormatInt(target.ID, 10),
+			"can_manage_chat":        "true",
+			"can_change_info":        "false",
+			"can_delete_messages":    "true",
+			"can_invite_users":       "true",
+			"can_restrict_members":   "true",
+			"can_pin_messages":       "true",
+			"can_promote_members":    "false",
+			"can_manage_video_chats": "true",
+		}
+		_, err = bot.MakeRequest("promoteChatMember", promoteParams)
 	}
 
-	_, err := bot.Request(promoteConfig)
 	if err != nil {
 		log.Printf("[Promote] Error promoting user %d: %v", target.ID, err)
-		sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("❌ Failed to promote user: <i>%s</i>\nMake sure the bot has <b>Add new admins</b> permission.", html.EscapeString(err.Error())))
+		errStr := err.Error()
+		if strings.Contains(strings.ToLower(errStr), "right") || strings.Contains(strings.ToLower(errStr), "admin") {
+			sendHTMLMessage(bot, message.Chat.ID, "❌ <b>Cannot promote:</b> Make sure the bot has <b>Add new admins</b> permission.")
+		} else {
+			sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("❌ Failed to promote user: <i>%s</i>", html.EscapeString(errStr)))
+		}
 		return
 	}
 
@@ -529,41 +550,63 @@ func HandleDemote(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 
 	target := message.ReplyToMessage.From
 
-	// Explicitly pass all valid boolean fields as "false" via MakeRequest.
-	// We distinguish between channels and groups/supergroups because sending channel permissions
-	// (like can_post_messages) in a group causes Telegram to return BOT_CHANNELS_NA.
-	demoteParams := tgbotapi.Params{
-		"chat_id":                strconv.FormatInt(message.Chat.ID, 10),
-		"user_id":                strconv.FormatInt(target.ID, 10),
-		"is_anonymous":           "false",
-		"can_manage_chat":        "false",
-		"can_change_info":        "false",
-		"can_delete_messages":    "false",
-		"can_manage_video_chats": "false",
-		"can_invite_users":       "false",
-		"can_restrict_members":   "false",
-		"can_promote_members":    "false",
-	}
-
+	// Prepare exact parameters per chat type to avoid Telegram BOT_CHANNELS_NA
+	var demoteParams tgbotapi.Params
 	if message.Chat.IsChannel() {
-		demoteParams["can_post_messages"] = "false"
-		demoteParams["can_edit_messages"] = "false"
-		demoteParams["can_post_stories"] = "false"
-		demoteParams["can_edit_stories"] = "false"
-		demoteParams["can_delete_stories"] = "false"
+		demoteParams = tgbotapi.Params{
+			"chat_id":             strconv.FormatInt(message.Chat.ID, 10),
+			"user_id":             strconv.FormatInt(target.ID, 10),
+			"can_manage_chat":     "false",
+			"can_change_info":     "false",
+			"can_post_messages":   "false",
+			"can_edit_messages":   "false",
+			"can_delete_messages": "false",
+			"can_invite_users":    "false",
+			"can_promote_members": "false",
+		}
 	} else {
-		demoteParams["can_pin_messages"] = "false"
-		demoteParams["can_manage_topics"] = "false"
+		demoteParams = tgbotapi.Params{
+			"chat_id":                strconv.FormatInt(message.Chat.ID, 10),
+			"user_id":                strconv.FormatInt(target.ID, 10),
+			"is_anonymous":           "false",
+			"can_manage_chat":        "false",
+			"can_change_info":        "false",
+			"can_delete_messages":    "false",
+			"can_manage_video_chats": "false",
+			"can_invite_users":       "false",
+			"can_restrict_members":   "false",
+			"can_pin_messages":       "false",
+			"can_promote_members":    "false",
+		}
 	}
 
 	_, err := bot.MakeRequest("promoteChatMember", demoteParams)
 	if err != nil {
-		log.Printf("[Demote] Error demoting user %d: %v", target.ID, err)
 		errStr := err.Error()
-		if strings.Contains(strings.ToLower(errStr), "not promoted by bot") || strings.Contains(strings.ToLower(errStr), "creator") {
-			sendHTMLMessage(bot, message.Chat.ID, "❌ <b>Cannot demote:</b> This user was appointed by the Group Creator or another admin. Telegram bots can only demote administrators that were promoted by the bot itself.")
-		} else if strings.Contains(strings.ToLower(errStr), "right") || strings.Contains(strings.ToLower(errStr), "admin") {
+		log.Printf("[Demote] Initial attempt failed for user %d: %v. Retrying with minimal params...", target.ID, err)
+
+		// Fallback retry with universal minimal parameters if chat type was misidentified or strict mode
+		fallbackParams := tgbotapi.Params{
+			"chat_id":             strconv.FormatInt(message.Chat.ID, 10),
+			"user_id":             strconv.FormatInt(target.ID, 10),
+			"can_change_info":     "false",
+			"can_delete_messages": "false",
+			"can_invite_users":    "false",
+			"can_promote_members": "false",
+		}
+		_, fallbackErr := bot.MakeRequest("promoteChatMember", fallbackParams)
+		if fallbackErr == nil {
+			sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("🔽 <b>%s</b> has been demoted.", html.EscapeString(target.FirstName)))
+			return
+		}
+
+		errLower := strings.ToLower(errStr)
+		if strings.Contains(errLower, "not promoted by bot") || strings.Contains(errLower, "creator") {
+			sendHTMLMessage(bot, message.Chat.ID, "❌ <b>Cannot demote:</b> This user was appointed by the Group Creator or another admin.\n\n<i>Note: Telegram only allows bots to demote admins that were promoted by the bot itself.</i>")
+		} else if strings.Contains(errLower, "right") || strings.Contains(errLower, "admin") || strings.Contains(errLower, "privilege") {
 			sendHTMLMessage(bot, message.Chat.ID, "❌ <b>Cannot demote:</b> The bot lacks the required administrator rights (e.g. <i>Add New Admins</i>).")
+		} else if strings.Contains(errLower, "bot_channels_na") {
+			sendHTMLMessage(bot, message.Chat.ID, "❌ <b>Cannot demote:</b> This user cannot be demoted with current chat permissions.")
 		} else {
 			sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("❌ Failed to demote user: <i>%s</i>", html.EscapeString(errStr)))
 		}
