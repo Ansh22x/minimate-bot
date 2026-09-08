@@ -40,8 +40,8 @@ func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		return
 	}
 
-	// Automatically track active group in database
-	RecordChatActivity(update.Message.Chat)
+	// Automatically track active group in database asynchronously (0ms latency impact)
+	go RecordChatActivity(update.Message.Chat)
 
 	// 2. Handle Security Locks (Anti-Link, Anti-Forward, Media blocker)
 	if CheckMessageLocks(bot, update.Message) {

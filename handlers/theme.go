@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -156,7 +157,26 @@ func ReplaceEmojis(text string) string {
 	})
 }
 
-// SafeSend sends or edits a message with automatic custom emoji injection and fallback
+var (
+	customEmojisSupported = (os.Getenv("ENABLE_CUSTOM_EMOJIS") == "true")
+	emojiTestLock         sync.RWMutex
+)
+
+// SetCustomEmojisSupported dynamically enables or disables custom emoji overhead
+func SetCustomEmojisSupported(supported bool) {
+	emojiTestLock.Lock()
+	customEmojisSupported = supported
+	emojiTestLock.Unlock()
+}
+
+// IsCustomEmojisSupported returns whether custom emojis are active
+func IsCustomEmojisSupported() bool {
+	emojiTestLock.RLock()
+	defer emojiTestLock.RUnlock()
+	return customEmojisSupported
+}
+
+// SafeSend sends or edits a message with ultra-low latency and optional custom emoji fallback
 func SafeSend(bot *tgbotapi.BotAPI, chattable tgbotapi.Chattable) (tgbotapi.Message, error) {
 	applyEmojis := func(c tgbotapi.Chattable, replace bool) tgbotapi.Chattable {
 		switch v := c.(type) {
@@ -234,6 +254,19 @@ func SafeSend(bot *tgbotapi.BotAPI, chattable tgbotapi.Chattable) (tgbotapi.Mess
 		return c
 	}
 
+	// 1. Fast path: If custom emojis are not enabled, send clean unicode formatted message in 1 single HTTPS call (30-50ms)
+	if !IsCustomEmojisSupported() {
+		cleanTry := applyEmojis(chattable, false)
+		resp, err := bot.Request(cleanTry)
+		if err == nil {
+			var msg tgbotapi.Message
+			_ = json.Unmarshal(resp.Result, &msg)
+			return msg, nil
+		}
+		return tgbotapi.Message{}, err
+	}
+
+	// 2. Custom Emoji path: Try custom emojis first
 	firstTry := applyEmojis(chattable, true)
 	resp, err := bot.Request(firstTry)
 	if err == nil {
@@ -242,7 +275,10 @@ func SafeSend(bot *tgbotapi.BotAPI, chattable tgbotapi.Chattable) (tgbotapi.Mess
 		return msg, nil
 	}
 
-	log.Printf("⚠️ SafeSend initial attempt failed: %v. Retrying without custom emojis...", err)
+	// 3. Fallback: Telegram rejected custom emojis -> automatically disable overhead for future calls
+	log.Printf("⚠️ SafeSend: Custom emojis rejected by Telegram (%v). Switching to ultra-fast standard emoji mode.", err)
+	SetCustomEmojisSupported(false)
+
 	fallbackTry := applyEmojis(chattable, false)
 	resp2, err2 := bot.Request(fallbackTry)
 	if err2 == nil {
