@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"minimate-bot/config"
@@ -15,11 +17,21 @@ import (
 // Track bot boot time
 var botStartTime = time.Now()
 
+// Cache for Intro video file ID
+var (
+	startVideoFileID string
+	videoMutex       sync.RWMutex
+)
+
 // HandleUpdate processes each incoming update concurrently
 func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	// 1. Handle Captcha Button Taps
-	if update.CallbackQuery != nil && strings.HasPrefix(update.CallbackQuery.Data, "captcha_verify:") {
-		HandleCaptchaCallback(bot, update.CallbackQuery)
+	// 1. Handle Inline Callbacks (Captcha verification & Tabbed Menus)
+	if update.CallbackQuery != nil {
+		if strings.HasPrefix(update.CallbackQuery.Data, "captcha_verify:") {
+			HandleCaptchaCallback(bot, update.CallbackQuery)
+			return
+		}
+		HandleMenuCallback(bot, update.CallbackQuery)
 		return
 	}
 
@@ -80,7 +92,8 @@ func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 // INLINE KEYBOARDS & GREETINGS
 // ----------------------------------------------------
 
-func getStartKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
+// GetStartKeyboard generates the main start menu buttons
+func GetStartKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 	addURL := fmt.Sprintf("https://t.me/%s?startgroup=true", botUsername)
 	ownerURL := fmt.Sprintf("https://t.me/%s", config.OwnerUsername)
 
@@ -89,12 +102,18 @@ func getStartKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonURL("➕ Add Me To Your Group", addURL),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonURL("💬 Contact Support", ownerURL),
+			tgbotapi.NewInlineKeyboardButtonData("📜 Commands Explorer", "menu_commands"),
+			tgbotapi.NewInlineKeyboardButtonData("💎 Premium VIP", "tab_premium"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("👑 Support & Owner", ownerURL),
+			tgbotapi.NewInlineKeyboardButtonData("ℹ️ About", "tab_about"),
 		),
 	)
 }
 
-func getHomeText(firstName string) string {
+// GetHomeText generates the main welcome greeting
+func GetHomeText(firstName string) string {
 	return fmt.Sprintf(`╭━━━━━━━━━━━━━━━━━━━━━━╮
    🌸 <b>𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 𝐏𝐫𝐨</b> 🌸
 ╰━━━━━━━━━━━━━━━━━━━━━━╯
@@ -107,7 +126,7 @@ func getHomeText(firstName string) string {
 ✨ Premium Animated UI & Smart Math Captcha
 📢 Automate • Moderate • Organize</blockquote>
 
-📚 Use <code>/help</code> or <code>/commands</code> to view all commands!`, html.EscapeString(firstName))
+📚 Tap <b>Commands Explorer</b> below to browse all features!`, html.EscapeString(firstName))
 }
 
 // ----------------------------------------------------
@@ -140,15 +159,74 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 	// 1. GENERAL / SYSTEM
 	// -------------------------
 	case "start":
-		startText := getHomeText(fromFirstName)
+		startText := GetHomeText(fromFirstName)
+		keyboard := GetStartKeyboard(bot.Self.UserName)
+
+		// In Private DM, attempt to send Intro video with caching
+		if message.Chat.IsPrivate() {
+			videoMutex.RLock()
+			cachedID := startVideoFileID
+			videoMutex.RUnlock()
+
+			var sentVideo bool
+			if cachedID != "" {
+				videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FileID(cachedID))
+				videoMsg.Caption = startText
+				videoMsg.ParseMode = "HTML"
+				videoMsg.ReplyMarkup = keyboard
+				res, err := SafeSend(bot, videoMsg)
+				if err == nil && res.MessageID != 0 {
+					sentVideo = true
+				} else {
+					log.Printf("Notice: Cached start video send returned: %v", err)
+				}
+			}
+
+			if !sentVideo {
+				if _, err := os.Stat("Intro.mp4"); err == nil {
+					videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FilePath("Intro.mp4"))
+					videoMsg.Caption = startText
+					videoMsg.ParseMode = "HTML"
+					videoMsg.ReplyMarkup = keyboard
+					res, err := SafeSend(bot, videoMsg)
+					if err == nil && res.MessageID != 0 {
+						sentVideo = true
+						if res.Video != nil && res.Video.FileID != "" {
+							videoMutex.Lock()
+							startVideoFileID = res.Video.FileID
+							videoMutex.Unlock()
+							log.Printf("✅ Intro video uploaded and cached with FileID: %s", res.Video.FileID)
+						}
+					} else {
+						log.Printf("Notice: Failed to upload Intro.mp4 (%v), falling back to text menu", err)
+					}
+				}
+			}
+
+			if sentVideo {
+				sendReply = false
+				break
+			}
+		}
+
+		// Fallback or Group start message
 		msg := tgbotapi.NewMessage(chatID, startText)
 		msg.ParseMode = "HTML"
-		msg.ReplyMarkup = getStartKeyboard(bot.Self.UserName)
+		msg.ReplyMarkup = keyboard
 		SafeSend(bot, msg)
 		sendReply = false
 
 	case "help", "commands":
-		helpText := fmt.Sprintf(`📋 <b>𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 𝐂𝐨𝐦𝐦𝐚𝐧𝐝𝐬 𝐃𝐢𝐫𝐞𝐜𝐭𝐨𝐫𝐲</b>
+		if message.Chat.IsPrivate() {
+			msg := tgbotapi.NewMessage(chatID, `📚 <b>𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 𝐂𝐨𝐦𝐦𝐚𝐧𝐝 𝐄𝐱𝐩𝐥𝐨𝐫𝐞𝐫</b>
+
+<blockquote expandable>Select a category below to explore all available features, moderation commands, and automation tools.</blockquote>`)
+			msg.ParseMode = "HTML"
+			msg.ReplyMarkup = getCommandsCategoryKeyboard()
+			SafeSend(bot, msg)
+			sendReply = false
+		} else {
+			helpText := fmt.Sprintf(`📋 <b>𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 𝐂𝐨𝐦𝐦𝐚𝐧𝐝𝐬 𝐃𝐢𝐫𝐞𝐜𝐭𝐨𝐫𝐲</b>
 
 <blockquote expandable><b>👥 Member Commands:</b>
 • <code>/start</code> — Start the bot
@@ -174,7 +252,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 • <code>/unwarn</code> / <code>/rmwarns</code> — Remove / reset warnings
 • <code>/promote</code> / <code>/demote</code> — Promote / demote admin
 
-<b>🔐 Security & Locks:</b>
+<b>🔐 Security &amp; Locks:</b>
 • <code>/lock &lt;type&gt;</code> — <code>links</code>, <code>forwards</code>, <code>stickers</code>, <code>media</code>, <code>bots</code>, <code>all</code>
 • <code>/unlock &lt;type&gt;</code> — Unlock specified category
 • <code>/locks</code> — View active group lock status
@@ -182,7 +260,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 • <code>/captchamode &lt;button|math&gt;</code> — Set mode
 • <code>/captchatime &lt;sec&gt;</code> — Set timeout (30-600s)
 
-<b>🧹 Chat Tools & Greetings:</b>
+<b>🧹 Chat Tools &amp; Greetings:</b>
 • <code>/purge</code> / <code>/del</code> — Mass / single delete
 • <code>/pin</code> / <code>/unpin</code> / <code>/unpinall</code> — Message pinning
 • <code>/welcome &lt;on/off&gt;</code>, <code>/setwelcome</code>, <code>/rmwelcome</code>
@@ -190,10 +268,17 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 • <code>/setrules &lt;text&gt;</code> / <code>/clearrules</code> — Rules manager
 • <code>/filter &lt;word&gt; &lt;reply&gt;</code> / <code>/stop</code> — Auto-reply filter</blockquote>`)
 
-		msg := tgbotapi.NewMessage(chatID, helpText)
-		msg.ParseMode = "HTML"
-		SafeSend(bot, msg)
-		sendReply = false
+			msg := tgbotapi.NewMessage(chatID, helpText)
+			msg.ParseMode = "HTML"
+			pmURL := fmt.Sprintf("https://t.me/%s?start=help", bot.Self.UserName)
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonURL("✨ Open Interactive Explorer", pmURL),
+				),
+			)
+			SafeSend(bot, msg)
+			sendReply = false
+		}
 
 	case "owner", "creator":
 		ownerText := fmt.Sprintf(`👨‍💻 <b>𝐌𝐢𝐧𝐢𝐌𝐚𝐭𝐞 𝐎𝐰𝐧𝐞𝐫 & 𝐃𝐞𝐯𝐞𝐥𝐨𝐩𝐞𝐫</b>
