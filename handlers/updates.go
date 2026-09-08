@@ -162,54 +162,52 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		startText := GetHomeText(fromFirstName)
 		keyboard := GetStartKeyboard(bot.Self.UserName)
 
-		// In Private DM, attempt to send Intro video with caching
-		if message.Chat.IsPrivate() {
-			videoMutex.RLock()
-			cachedID := startVideoFileID
-			videoMutex.RUnlock()
+		// Attempt to send Intro video with instant caching
+		videoMutex.RLock()
+		cachedID := startVideoFileID
+		videoMutex.RUnlock()
 
-			var sentVideo bool
-			if cachedID != "" {
-				videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FileID(cachedID))
+		var sentVideo bool
+		if cachedID != "" {
+			videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FileID(cachedID))
+			videoMsg.Caption = startText
+			videoMsg.ParseMode = "HTML"
+			videoMsg.ReplyMarkup = keyboard
+			res, err := SafeSend(bot, videoMsg)
+			if err == nil && res.MessageID != 0 {
+				sentVideo = true
+			} else {
+				log.Printf("Notice: Cached start video send returned: %v", err)
+			}
+		}
+
+		if !sentVideo {
+			if _, err := os.Stat("Intro.mp4"); err == nil {
+				videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FilePath("Intro.mp4"))
 				videoMsg.Caption = startText
 				videoMsg.ParseMode = "HTML"
 				videoMsg.ReplyMarkup = keyboard
 				res, err := SafeSend(bot, videoMsg)
 				if err == nil && res.MessageID != 0 {
 					sentVideo = true
-				} else {
-					log.Printf("Notice: Cached start video send returned: %v", err)
-				}
-			}
-
-			if !sentVideo {
-				if _, err := os.Stat("Intro.mp4"); err == nil {
-					videoMsg := tgbotapi.NewVideo(chatID, tgbotapi.FilePath("Intro.mp4"))
-					videoMsg.Caption = startText
-					videoMsg.ParseMode = "HTML"
-					videoMsg.ReplyMarkup = keyboard
-					res, err := SafeSend(bot, videoMsg)
-					if err == nil && res.MessageID != 0 {
-						sentVideo = true
-						if res.Video != nil && res.Video.FileID != "" {
-							videoMutex.Lock()
-							startVideoFileID = res.Video.FileID
-							videoMutex.Unlock()
-							log.Printf("✅ Intro video uploaded and cached with FileID: %s", res.Video.FileID)
-						}
-					} else {
-						log.Printf("Notice: Failed to upload Intro.mp4 (%v), falling back to text menu", err)
+					if res.Video != nil && res.Video.FileID != "" {
+						videoMutex.Lock()
+						startVideoFileID = res.Video.FileID
+						videoMutex.Unlock()
+						log.Printf("✅ Intro video uploaded and cached with FileID: %s", res.Video.FileID)
 					}
+				} else {
+					log.Printf("Notice: Failed to upload Intro.mp4 (%v), falling back to text menu", err)
 				}
-			}
-
-			if sentVideo {
-				sendReply = false
-				break
 			}
 		}
 
-		// Fallback or Group start message
+		if sentVideo {
+			sendReply = false
+			break
+		}
+
+		// Fallback clean text message
 		msg := tgbotapi.NewMessage(chatID, startText)
 		msg.ParseMode = "HTML"
 		msg.ReplyMarkup = keyboard
@@ -407,8 +405,43 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 	// -------------------------
 	// 3. VIP & SUBSCRIPTIONS
 	// -------------------------
-	case "setvip", "rmvip", "checkvip", "vipstatus", "premium":
-		HandleVIPCommand(bot, message, command, args)
+	case "setvip":
+		HandleSetVIP(bot, message, args)
+		sendReply = false
+
+	case "rmvip":
+		HandleRmVIP(bot, message, args)
+		sendReply = false
+
+	case "viplist", "vips":
+		HandleVIPList(bot, message)
+		sendReply = false
+
+	case "vip", "premium", "checkvip", "vipstatus":
+		HandleVIPStatus(bot, message, args)
+		sendReply = false
+
+	// -------------------------
+	// BOT ADMINS & SUDO PANEL
+	// -------------------------
+	case "addbotadmin", "addsudo":
+		HandleAddBotAdmin(bot, message, args)
+		sendReply = false
+
+	case "rmbotadmin", "delsudo":
+		HandleRmBotAdmin(bot, message, args)
+		sendReply = false
+
+	case "botadmins", "sudolist", "sudos":
+		HandleListBotAdmins(bot, message)
+		sendReply = false
+
+	case "leave", "kickme":
+		HandleLeave(bot, message, args)
+		sendReply = false
+
+	case "broadcast", "gcast", "post":
+		HandleBroadcast(bot, message, args)
 		sendReply = false
 
 	// -------------------------

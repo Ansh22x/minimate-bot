@@ -78,6 +78,15 @@ func CreateTables() {
 		is_active BOOLEAN DEFAULT true,
 		updated_at TIMESTAMPTZ DEFAULT NOW()
 	);
+
+	-- Global Bot Administrators / Sudos Table
+	CREATE TABLE IF NOT EXISTS bot_admins (
+		user_id BIGINT PRIMARY KEY,
+		user_name TEXT,
+		first_name TEXT,
+		added_by BIGINT,
+		created_at TIMESTAMPTZ DEFAULT NOW()
+	);
 	`
 
 	_, err := Pool.Exec(context.Background(), query)
