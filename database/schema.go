@@ -64,6 +64,13 @@ func CreateTables() {
 		updated_at TIMESTAMPTZ DEFAULT NOW()
 	);
 	ALTER TABLE chat_locks ADD COLUMN IF NOT EXISTS locks JSONB DEFAULT '{}'::jsonb;
+	ALTER TABLE chat_locks ADD COLUMN IF NOT EXISTS lock_links BOOLEAN DEFAULT false;
+	ALTER TABLE chat_locks ADD COLUMN IF NOT EXISTS lock_forwards BOOLEAN DEFAULT false;
+	ALTER TABLE chat_locks ADD COLUMN IF NOT EXISTS lock_stickers BOOLEAN DEFAULT false;
+	ALTER TABLE chat_locks ADD COLUMN IF NOT EXISTS lock_bots BOOLEAN DEFAULT false;
+	ALTER TABLE chat_locks ADD COLUMN IF NOT EXISTS lock_media BOOLEAN DEFAULT false;
+	ALTER TABLE chat_locks ADD COLUMN IF NOT EXISTS lock_invites BOOLEAN DEFAULT false;
+	ALTER TABLE chat_locks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 	-- Automated Human Verification Captcha Module
 	CREATE TABLE IF NOT EXISTS chat_captcha (

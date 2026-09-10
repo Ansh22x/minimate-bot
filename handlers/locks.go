@@ -192,18 +192,24 @@ func loadChatLocks(chatID int64) map[string]bool {
 	}
 
 	locks := make(map[string]bool)
-	var rawJSON []byte
+	var rawJSON string
 	var lockLinks, lockForwards, lockStickers, lockBots, lockMedia, lockInvites bool
 
 	query := `
-		SELECT COALESCE(locks, '{}'::jsonb), lock_links, lock_forwards, lock_stickers, lock_bots, lock_media, lock_invites
+		SELECT COALESCE(locks::text, '{}'),
+		       COALESCE(lock_links, false),
+		       COALESCE(lock_forwards, false),
+		       COALESCE(lock_stickers, false),
+		       COALESCE(lock_bots, false),
+		       COALESCE(lock_media, false),
+		       COALESCE(lock_invites, false)
 		FROM chat_locks WHERE chat_id = $1
 	`
 	err := database.Pool.QueryRow(context.Background(), query, chatID).
 		Scan(&rawJSON, &lockLinks, &lockForwards, &lockStickers, &lockBots, &lockMedia, &lockInvites)
 
 	if err == nil && len(rawJSON) > 0 {
-		_ = json.Unmarshal(rawJSON, &locks)
+		_ = json.Unmarshal([]byte(rawJSON), &locks)
 	}
 
 	// Backfill legacy column states if not set in JSON
@@ -798,16 +804,17 @@ func HandleLockCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			}
 		}
 
-		// Marshal to JSONB
+		// Marshal to JSON string
 		jsonBytes, err := json.Marshal(newLocks)
 		if err != nil {
 			log.Printf("JSON marshal error: %v", err)
 			return
 		}
+		jsonStr := string(jsonBytes)
 
 		query := `
-			INSERT INTO chat_locks (chat_id, locks, lock_links, lock_forwards, lock_stickers, lock_bots, lock_media, lock_invites, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+			INSERT INTO chat_locks (chat_id, locks, lock_links, lock_forwards, lock_stickers, lock_bots, lock_media, lock_invites)
+			VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8)
 			ON CONFLICT (chat_id) DO UPDATE SET
 				locks = EXCLUDED.locks,
 				lock_links = EXCLUDED.lock_links,
@@ -815,12 +822,11 @@ func HandleLockCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 				lock_stickers = EXCLUDED.lock_stickers,
 				lock_bots = EXCLUDED.lock_bots,
 				lock_media = EXCLUDED.lock_media,
-				lock_invites = EXCLUDED.lock_invites,
-				updated_at = NOW();
+				lock_invites = EXCLUDED.lock_invites;
 		`
 		_, dbErr := database.Pool.Exec(context.Background(), query,
 			chatID,
-			jsonBytes,
+			jsonStr,
 			newLocks["url"] || newLocks["all"],
 			newLocks["forward"] || newLocks["all"],
 			newLocks["sticker"] || newLocks["all"],
@@ -830,7 +836,7 @@ func HandleLockCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 		)
 
 		if dbErr != nil {
-			log.Printf("DB error saving locks: %v", dbErr)
+			log.Printf("DB error saving locks for chat %d: %v", chatID, dbErr)
 			SafeSend(bot, tgbotapi.NewMessage(chatID, "❌ Database error updating security locks."))
 			return
 		}
