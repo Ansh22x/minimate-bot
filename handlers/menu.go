@@ -59,15 +59,18 @@ func HandleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		markup = getCategoryBackKeyboard()
 
 	case "tab_locks":
-		newText = `🛡️ <b>𝐒𝐞𝐜𝐮𝐫𝐢𝐭𝐲 &amp; 𝐋𝐨𝐜𝐤 𝐒𝐡𝐢𝐞𝐥𝐝𝐬</b>
+		newText = `🛡️ <b>𝐒𝐞𝐜𝐮𝐫𝐢𝐭𝐲 &amp; 𝐋𝐨𝐜𝐤 𝐒𝐡𝐢𝐞𝐥𝐝𝐬 (48+ Types)</b>
 
-<blockquote expandable>• <code>/lock &lt;type&gt;</code> — Lock a category
-  <i>Types:</i> <code>links</code>, <code>forwards</code>, <code>stickers</code>, <code>media</code>, <code>bots</code>, <code>all</code>
-• <code>/unlock &lt;type&gt;</code> — Unlock specified category
-• <code>/locks</code> — View all active chat lock shields
+<blockquote expandable>• <code>/lock &lt;type&gt;</code> — Lock any media, link, script or message type
+• <code>/unlock &lt;type&gt;</code> — Unlock specified lock type
+• <code>/locks</code> — View visual dashboard of all 48 shields
+• <code>/locktypes</code> — Open full directory of 48+ lock categories
 • <code>/captcha &lt;on/off&gt;</code> — Toggle new member captcha
 • <code>/captchamode &lt;button|math&gt;</code> — Set captcha challenge
-• <code>/captchatime &lt;sec&gt;</code> — Verification timeout (30-600s)</blockquote>`
+• <code>/captchatime &lt;sec&gt;</code> — Verification timeout (30-600s)
+
+🌟 <b>Popular Lock Types:</b>
+<code>all</code>, <code>media</code>, <code>url</code>, <code>invitelink</code>, <code>botlink</code>, <code>forward</code>, <code>sticker</code>, <code>gif</code>, <code>cjk</code>, <code>cyrillic</code>, <code>rtl</code>, <code>zalgo</code>, <code>album</code>, <code>poll</code>, <code>contact</code>, <code>anonchannel</code>, <code>bot</code></blockquote>`
 		markup = getCategoryBackKeyboard()
 
 	case "tab_tools":

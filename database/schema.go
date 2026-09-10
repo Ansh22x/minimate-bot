@@ -51,16 +51,19 @@ func CreateTables() {
 		plan_name TEXT DEFAULT 'VIP'
 	);
 
-	-- Security Locks Module (Anti-Link, Anti-Forward, Media Locks)
+	-- Security Locks Module (Comprehensive 48+ Lock Types)
 	CREATE TABLE IF NOT EXISTS chat_locks (
 		chat_id BIGINT PRIMARY KEY,
+		locks JSONB DEFAULT '{}'::jsonb,
 		lock_links BOOLEAN DEFAULT false,
 		lock_forwards BOOLEAN DEFAULT false,
 		lock_stickers BOOLEAN DEFAULT false,
 		lock_bots BOOLEAN DEFAULT false,
 		lock_media BOOLEAN DEFAULT false,
-		lock_invites BOOLEAN DEFAULT false
+		lock_invites BOOLEAN DEFAULT false,
+		updated_at TIMESTAMPTZ DEFAULT NOW()
 	);
+	ALTER TABLE chat_locks ADD COLUMN IF NOT EXISTS locks JSONB DEFAULT '{}'::jsonb;
 
 	-- Automated Human Verification Captcha Module
 	CREATE TABLE IF NOT EXISTS chat_captcha (
