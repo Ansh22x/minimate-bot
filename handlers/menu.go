@@ -54,7 +54,10 @@ func HandleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 • <code>/unwarn</code> — Remove 1 warning strike from user
 • <code>/rmwarns</code> — Reset all warnings for a user
 • <code>/warns</code> — Check your warning strike count
-• <code>/promote &lt;title&gt;</code> — Promote user to Admin
+• <code>/promote [title]</code> — Promote to Jr. Admin (or 2nd time to Sr. Admin)
+• <code>/fullpromote [title]</code> — Promote directly to Sr. Admin (Full Rights)
+• <code>/title &lt;text&gt;</code> — Set custom admin title
+• <code>/adminlist</code> — View staff directory grouped by rank
 • <code>/demote</code> — Demote admin to regular member</blockquote>`
 		markup = getCategoryBackKeyboard()
 

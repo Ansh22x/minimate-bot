@@ -247,8 +247,10 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 • <code>/mute</code> / <code>/unmute</code> — Mute / unmute user
 • <code>/tmute &lt;time&gt;</code> — Temp-mute (e.g. <code>/tmute 30m</code>)
 • <code>/warn</code> / <code>/dwarn</code> — Strike (3 strikes = auto-ban)
-• <code>/unwarn</code> / <code>/rmwarns</code> — Remove / reset warnings
-• <code>/promote</code> / <code>/demote</code> — Promote / demote admin
+• <code>/promote [title]</code> — Promote (Jr. / Sr. Admin)
+• <code>/demote</code> — Demote admin to regular member
+• <code>/title &lt;text&gt;</code> — Set custom admin badge
+• <code>/adminlist</code> — View staff directory by rank
 
 <b>🔐 Security &amp; Locks:</b>
 • <code>/lock &lt;type&gt;</code> — <code>links</code>, <code>forwards</code>, <code>stickers</code>, <code>media</code>, <code>bots</code>, <code>all</code>
@@ -382,15 +384,15 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		HandleKick(bot, message)
 		sendReply = false
 
-	case "promote":
-		HandlePromote(bot, message)
+	case "promote", "fullpromote", "spromote", "snrpromote", "jrpromote", "jpromote":
+		HandlePromote(bot, message, command, args)
 		sendReply = false
 
 	case "demote":
 		HandleDemote(bot, message)
 		sendReply = false
 
-	case "adminlist":
+	case "adminlist", "admins", "staff":
 		HandleAdminList(bot, message)
 		sendReply = false
 
@@ -398,7 +400,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		HandleInviteLink(bot, message)
 		sendReply = false
 
-	case "title":
+	case "title", "settitle":
 		HandleTitle(bot, message, args)
 		sendReply = false
 

@@ -528,42 +528,108 @@ func HandleUnmute(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 // PROMOTIONS & ADMIN ROLES
 // -------------------------
 
-// HandlePromote promotes a user with standard admin privileges
-func HandlePromote(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
+// HandlePromote promotes a user with tiered privileges (Jr. Admin / Sr. Admin)
+func HandlePromote(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, args string) {
 	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ You must be an administrator to use this command.")
 		return
 	}
 	if message.ReplyToMessage == nil || message.ReplyToMessage.From == nil {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Reply to a user's message to promote them.")
+		sendHTMLMessage(bot, message.Chat.ID, "❌ Reply to a user's message with <code>/promote</code> to promote them.")
 		return
 	}
 
 	target := message.ReplyToMessage.From
+	if target.ID == bot.Self.ID {
+		sendHTMLMessage(bot, message.Chat.ID, "🤖 I am already the bot administrator.")
+		return
+	}
+
+	chatID := message.Chat.ID
+	cleanArgs := strings.TrimSpace(args)
+	argsLower := strings.ToLower(cleanArgs)
+	cmdLower := strings.ToLower(cmd)
+
+	// Fetch target's current chat member status
+	memberConfig := tgbotapi.GetChatMemberConfig{
+		ChatConfigWithUser: tgbotapi.ChatConfigWithUser{
+			ChatID: chatID,
+			UserID: target.ID,
+		},
+	}
+	currentMember, _ := bot.GetChatMember(memberConfig)
+
+	// Determine requested promotion level
+	isExplicitSenior := cmdLower == "fullpromote" || cmdLower == "spromote" || cmdLower == "snrpromote" ||
+		strings.HasPrefix(argsLower, "sr") || strings.HasPrefix(argsLower, "snr") || strings.HasPrefix(argsLower, "senior") || strings.HasPrefix(argsLower, "full")
+	isExplicitJunior := cmdLower == "jrpromote" || cmdLower == "jpromote" ||
+		strings.HasPrefix(argsLower, "jr") || strings.HasPrefix(argsLower, "junior") || strings.HasPrefix(argsLower, "low")
+
+	level := "junior"
+	customTitle := ""
+
+	if isExplicitSenior {
+		level = "senior"
+		fields := strings.Fields(cleanArgs)
+		if len(fields) > 1 {
+			customTitle = strings.Join(fields[1:], " ")
+		}
+	} else if isExplicitJunior {
+		level = "junior"
+		fields := strings.Fields(cleanArgs)
+		if len(fields) > 1 {
+			customTitle = strings.Join(fields[1:], " ")
+		}
+	} else {
+		// Custom title provided without explicit level keyword (e.g. "/promote Moderator")
+		if cleanArgs != "" {
+			customTitle = cleanArgs
+		}
+
+		// Smart Tiering:
+		// If user is already an admin, promote to Senior Admin (Full Rights)!
+		// If user is a regular member, promote to Junior Admin!
+		if currentMember.Status == "administrator" {
+			level = "senior"
+		} else {
+			level = "junior"
+		}
+	}
+
+	if customTitle == "" {
+		if level == "senior" {
+			customTitle = "Sr. Admin"
+		} else {
+			customTitle = "Jr. Admin"
+		}
+	}
+	if len(customTitle) > 16 {
+		customTitle = customTitle[:16]
+	}
 
 	var err error
 	if message.Chat.IsChannel() {
 		promoteParams := tgbotapi.Params{
-			"chat_id":             strconv.FormatInt(message.Chat.ID, 10),
+			"chat_id":             strconv.FormatInt(chatID, 10),
 			"user_id":             strconv.FormatInt(target.ID, 10),
 			"can_manage_chat":     "true",
 			"can_post_messages":   "true",
 			"can_edit_messages":   "true",
 			"can_delete_messages": "true",
 			"can_invite_users":    "true",
-			"can_change_info":     "false",
+			"can_change_info":     strconv.FormatBool(level == "senior"),
 			"can_promote_members": "false",
 		}
 		_, err = bot.MakeRequest("promoteChatMember", promoteParams)
 	} else {
 		promoteParams := tgbotapi.Params{
-			"chat_id":                strconv.FormatInt(message.Chat.ID, 10),
+			"chat_id":                strconv.FormatInt(chatID, 10),
 			"user_id":                strconv.FormatInt(target.ID, 10),
 			"can_manage_chat":        "true",
-			"can_change_info":        "false",
+			"can_change_info":        strconv.FormatBool(level == "senior"),
 			"can_delete_messages":    "true",
 			"can_invite_users":       "true",
-			"can_restrict_members":   "true",
+			"can_restrict_members":   strconv.FormatBool(level == "senior"),
 			"can_pin_messages":       "true",
 			"can_promote_members":    "false",
 			"can_manage_video_chats": "true",
@@ -575,14 +641,60 @@ func HandlePromote(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 		log.Printf("[Promote] Error promoting user %d: %v", target.ID, err)
 		errStr := err.Error()
 		if strings.Contains(strings.ToLower(errStr), "right") || strings.Contains(strings.ToLower(errStr), "admin") {
-			sendHTMLMessage(bot, message.Chat.ID, "❌ <b>Cannot promote:</b> Make sure the bot has <b>Add new admins</b> permission.")
+			sendHTMLMessage(bot, chatID, "❌ <b>Cannot promote:</b> Make sure the bot has <b>Add new admins</b> permission.")
 		} else {
-			sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("❌ Failed to promote user: <i>%s</i>", html.EscapeString(errStr)))
+			sendHTMLMessage(bot, chatID, fmt.Sprintf("❌ Failed to promote user: <i>%s</i>", html.EscapeString(errStr)))
 		}
 		return
 	}
 
-	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("⭐ <b>%s</b> has been promoted to Admin!", html.EscapeString(target.FirstName)))
+	// Apply custom title
+	titleParams := tgbotapi.Params{
+		"chat_id":      strconv.FormatInt(chatID, 10),
+		"user_id":      strconv.FormatInt(target.ID, 10),
+		"custom_title": customTitle,
+	}
+	_, _ = bot.MakeRequest("setChatAdministratorCustomTitle", titleParams)
+
+	var text string
+	if level == "senior" {
+		text = fmt.Sprintf(`🛡️ <b>Senior Administrator Promoted!</b>
+
+👤 <b>User:</b> <b>%s</b>
+🏷️ <b>Title:</b> <code>%s</code>
+⚡ <b>Tier:</b> <b>Sr. Admin (Full Moderation Rights)</b>
+
+<blockquote expandable>✅ <b>Assigned Permissions:</b>
+• 🚫 Ban, Mute &amp; Kick Members
+• 🗑️ Delete Messages
+• ⚙️ Change Group Info &amp; Settings
+• 🔗 Invite Users via Link
+• 📌 Pin &amp; Unpin Messages
+• 🎙️ Manage Video Chats</blockquote>`,
+			html.EscapeString(target.FirstName), html.EscapeString(customTitle))
+	} else {
+		text = fmt.Sprintf(`🎖️ <b>Junior Administrator Promoted!</b>
+
+👤 <b>User:</b> <b>%s</b>
+🏷️ <b>Title:</b> <code>%s</code>
+🔰 <b>Tier:</b> <b>Jr. Admin (Junior Moderator)</b>
+
+<blockquote expandable>✅ <b>Assigned Permissions:</b>
+• 🗑️ Delete Messages
+• 🔗 Invite Users via Link
+• 📌 Pin &amp; Unpin Messages
+• 🎙️ Manage Video Chats
+
+🔒 <b>Restricted (Disabled):</b>
+• ❌ Ban / Mute / Kick Members
+• ❌ Change Group Info
+• ❌ Add New Admins</blockquote>
+
+💡 <i>Reply with <code>/promote</code> again to upgrade this user to <b>Sr. Admin</b> with full permissions!</i>`,
+			html.EscapeString(target.FirstName), html.EscapeString(customTitle))
+	}
+
+	sendHTMLMessage(bot, chatID, text)
 }
 
 // HandleDemote strips all admin privileges from a user
@@ -664,7 +776,7 @@ func HandleDemote(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("🔽 <b>%s</b> has been demoted.", html.EscapeString(target.FirstName)))
 }
 
-// HandleAdminList lists all group admins
+// HandleAdminList lists all group admins categorized into distinct tiered rows
 func HandleAdminList(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	config := tgbotapi.ChatAdministratorsConfig{
 		ChatConfig: tgbotapi.ChatConfig{ChatID: message.Chat.ID},
@@ -676,20 +788,90 @@ func HandleAdminList(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 		return
 	}
 
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("🛡️ <b>Admins in %s:</b>\n\n", html.EscapeString(message.Chat.Title)))
+	var creators []tgbotapi.ChatMember
+	var seniors []tgbotapi.ChatMember
+	var juniors []tgbotapi.ChatMember
+	var bots []tgbotapi.ChatMember
 
 	for _, admin := range admins {
-		title := admin.CustomTitle
+		if admin.User.IsBot {
+			bots = append(bots, admin)
+		} else if admin.Status == "creator" {
+			creators = append(creators, admin)
+		} else if admin.CanRestrictMembers || admin.CanChangeInfo {
+			seniors = append(seniors, admin)
+		} else {
+			juniors = append(juniors, admin)
+		}
+	}
+
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("🛡️ <b>Staff &amp; Administrators Directory:</b>\n💬 <b>Group:</b> <b>%s</b>\n\n", html.EscapeString(message.Chat.Title)))
+
+	formatAdmin := func(m tgbotapi.ChatMember) string {
+		name := html.EscapeString(m.User.FirstName)
+		userTag := ""
+		if m.User.UserName != "" {
+			userTag = fmt.Sprintf(" (@%s)", html.EscapeString(m.User.UserName))
+		}
+		title := m.CustomTitle
 		if title == "" {
-			if admin.Status == "creator" {
-				title = "Creator"
+			if m.Status == "creator" {
+				title = "Owner"
+			} else if m.CanRestrictMembers || m.CanChangeInfo {
+				title = "Sr. Admin"
 			} else {
-				title = "Admin"
+				title = "Jr. Admin"
 			}
 		}
-		builder.WriteString(fmt.Sprintf("• %s (<code>%s</code>)\n", html.EscapeString(admin.User.FirstName), html.EscapeString(title)))
+		return fmt.Sprintf("• <b>%s</b>%s — <code>%s</code>\n", name, userTag, html.EscapeString(title))
 	}
+
+	// 1. Group Creator / Owner
+	builder.WriteString("👑 <b>Group Creator / Owner:</b>\n")
+	if len(creators) > 0 {
+		for _, c := range creators {
+			builder.WriteString(formatAdmin(c))
+		}
+	} else {
+		builder.WriteString("• <i>Hidden or Anonymous</i>\n")
+	}
+	builder.WriteString("\n")
+
+	// 2. Senior Administrators (Full Rights)
+	builder.WriteString("🛡️ <b>Senior Administrators (Full Rights):</b>\n")
+	if len(seniors) > 0 {
+		for _, s := range seniors {
+			builder.WriteString(formatAdmin(s))
+		}
+	} else {
+		builder.WriteString("• <i>None assigned</i>\n")
+	}
+	builder.WriteString("\n")
+
+	// 3. Junior Administrators (Moderators)
+	builder.WriteString("🎖️ <b>Junior Administrators (Moderators):</b>\n")
+	if len(juniors) > 0 {
+		for _, j := range juniors {
+			builder.WriteString(formatAdmin(j))
+		}
+	} else {
+		builder.WriteString("• <i>None assigned</i>\n")
+	}
+	builder.WriteString("\n")
+
+	// 4. Bot Administrators
+	if len(bots) > 0 {
+		builder.WriteString("🤖 <b>Bot Administrators:</b>\n")
+		for _, b := range bots {
+			builder.WriteString(formatAdmin(b))
+		}
+		builder.WriteString("\n")
+	}
+
+	// Summary statistics footer
+	builder.WriteString(fmt.Sprintf("<blockquote expandable>📊 <b>Total Staff:</b> <code>%d</code> (👑 %d Owner, 🛡️ %d Senior, 🎖️ %d Junior, 🤖 %d Bots)</blockquote>",
+		len(admins), len(creators), len(seniors), len(juniors), len(bots)))
 
 	sendHTMLMessage(bot, message.Chat.ID, builder.String())
 }
@@ -714,9 +896,42 @@ func HandleInviteLink(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("🔗 <b>Group Invite Link:</b>\n%s", html.EscapeString(link)))
 }
 
-// HandleTitle sets a custom admin title
+// HandleTitle sets a custom admin title for an administrator
 func HandleTitle(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
-	sendHTMLMessage(bot, message.Chat.ID, "❌ Custom admin titles are pending wrapper support.")
+	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
+		sendHTMLMessage(bot, message.Chat.ID, "❌ You must be an administrator to use this command.")
+		return
+	}
+	if message.ReplyToMessage == nil || message.ReplyToMessage.From == nil {
+		sendHTMLMessage(bot, message.Chat.ID, "❌ Reply to an administrator with <code>/title &lt;custom_title&gt;</code> to set their title.")
+		return
+	}
+
+	title := strings.TrimSpace(args)
+	if title == "" {
+		sendHTMLMessage(bot, message.Chat.ID, "❌ Please specify a title.\nExample: <code>/title Moderator</code>")
+		return
+	}
+	if len(title) > 16 {
+		sendHTMLMessage(bot, message.Chat.ID, "❌ Custom title cannot exceed 16 characters.")
+		return
+	}
+
+	target := message.ReplyToMessage.From
+	titleParams := tgbotapi.Params{
+		"chat_id":      strconv.FormatInt(message.Chat.ID, 10),
+		"user_id":      strconv.FormatInt(target.ID, 10),
+		"custom_title": title,
+	}
+	_, err := bot.MakeRequest("setChatAdministratorCustomTitle", titleParams)
+	if err != nil {
+		errStr := err.Error()
+		log.Printf("[Title] Failed to set title for %d: %v", target.ID, err)
+		sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("❌ Failed to set title: <i>%s</i>\n\n<i>Note: Bots can only edit custom titles for administrators that were promoted by the bot itself.</i>", html.EscapeString(errStr)))
+		return
+	}
+
+	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("✅ Custom title for <b>%s</b> has been set to <code>%s</code>.", html.EscapeString(target.FirstName), html.EscapeString(title)))
 }
 
 // -------------------------
