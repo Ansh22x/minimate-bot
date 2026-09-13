@@ -662,35 +662,14 @@ func HandlePromote(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, 
 
 👤 <b>User:</b> <b>%s</b>
 🏷️ <b>Title:</b> <code>%s</code>
-⚡ <b>Tier:</b> <b>Sr. Admin (Full Moderation Rights)</b>
-
-<blockquote expandable>✅ <b>Assigned Permissions:</b>
-• 🚫 Ban, Mute &amp; Kick Members
-• 🗑️ Delete Messages
-• ⚙️ Change Group Info &amp; Settings
-• 🔗 Invite Users via Link
-• 📌 Pin &amp; Unpin Messages
-• 🎙️ Manage Video Chats</blockquote>`,
+⚡ <b>Tier:</b> <b>Sr. Admin (Full Moderation Rights)</b>`,
 			html.EscapeString(target.FirstName), html.EscapeString(customTitle))
 	} else {
 		text = fmt.Sprintf(`🎖️ <b>Junior Administrator Promoted!</b>
 
 👤 <b>User:</b> <b>%s</b>
 🏷️ <b>Title:</b> <code>%s</code>
-🔰 <b>Tier:</b> <b>Jr. Admin (Junior Moderator)</b>
-
-<blockquote expandable>✅ <b>Assigned Permissions:</b>
-• 🗑️ Delete Messages
-• 🔗 Invite Users via Link
-• 📌 Pin &amp; Unpin Messages
-• 🎙️ Manage Video Chats
-
-🔒 <b>Restricted (Disabled):</b>
-• ❌ Ban / Mute / Kick Members
-• ❌ Change Group Info
-• ❌ Add New Admins</blockquote>
-
-💡 <i>Reply with <code>/promote</code> again to upgrade this user to <b>Sr. Admin</b> with full permissions!</i>`,
+🔰 <b>Tier:</b> <b>Jr. Admin (Junior Moderator)</b>`,
 			html.EscapeString(target.FirstName), html.EscapeString(customTitle))
 	}
 
