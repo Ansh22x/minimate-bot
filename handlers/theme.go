@@ -15,67 +15,127 @@ import (
 
 // Premium Custom Emoji IDs provided for MiniMate Pro
 var EmojiMapping = map[string]string{
-	// 1. Cross / Error / Ban
+	// 1. Shiny Blue Shield (New)
+	"🛡️": "5197288647275071607",
+	"🛡":  "5197288647275071607",
+
+	// 2. Pink Layered Theme Banner (New)
+	"🌸": "5213205860498549992",
+	"🌺": "5213205860498549992",
+	"💮": "5213205860498549992",
+
+	// 3. Screen Tap Hand UI (New)
+	"👉":  "5199885118214255386",
+	"👆":  "5199885118214255386",
+	"📱":  "5199885118214255386",
+	"🖥":  "5199885118214255386",
+	"🖱️": "5199885118214255386",
+
+	// 4. Books / Library Commands Explorer (New)
+	"📚": "5357479219335012900",
+	"📖": "5357479219335012900",
+	"📜": "5357479219335012900",
+
+	// 5. Pink Megaphone / Broadcast (New)
+	"📢": "4967957395331351254",
+	"📣": "4967957395331351254",
+
+	// 6. Sparkling VIP Diamond (New)
+	"💎": "5427168083074628963",
+	"💍": "5427168083074628963",
+
+	// 7. Artist Palette / Themes (New)
+	"🎨": "5310039132297242441",
+
+	// 8. Infinity Symbol / Unlimited (New)
+	"♾️": "6332197763417118285",
+	"♾":  "6332197763417118285",
+
+	// 9. Fast Forward Arrows / Reposts (New)
+	"⏩": "5222255721663449310",
+	"⏭": "5222255721663449310",
+	"➡️": "5222255721663449310",
+
+	// 10. Police Officer Cat / Admin & Moderation (New)
+	"👮":  "5298692507306040707",
+	"👮‍♂️": "5298692507306040707",
+	"👮‍♀️": "5298692507306040707",
+
+	// 11. Red Document Sheet / Filters & Notes (New)
+	"📝": "5033080906403808074",
+	"📄": "5033080906403808074",
+	"📑": "5033080906403808074",
+
+	// 12. Blue 3D Exclamation Cube / Warning Notice (New)
+	"⚠️":  "5334544901428229844",
+	"⚠️️": "5334544901428229844",
+	"🚨":  "5334544901428229844",
+	"❗":  "5334544901428229844",
+
+	// 13. Stopwatch / Latency & Uptime (New)
+	"⏱️": "5015045170496799920",
+	"⏱":  "5015045170496799920",
+	"⏳":  "5015045170496799920",
+	"⏰":  "5015045170496799920",
+	"🕒":  "5015045170496799920",
+
+	// 14. Cross / Error / Ban
 	"❌": "5210952531676504517",
 	"❎": "5210952531676504517",
 
-	// 2. Pin / Location
+	// 15. Pin / Location
 	"📌": "5292291996717690768",
 	"📍": "5292291996717690768",
 
-	// 3. Stats / Charts / Dashboard
+	// 16. Stats / Charts / Dashboard
 	"📊": "5231200819986047254",
 	"📈": "5231200819986047254",
 	"📉": "5231200819986047254",
 
-	// 4. Gear / Settings / System
+	// 17. Gear / Settings / System
 	"⚙️": "5341715473882955310",
 	"⚙":  "5341715473882955310",
 
-	// 5. Broom / Cleanup / Purge
+	// 18. Broom / Cleanup / Purge
 	"🧹": "5235929467309796721",
 	"🗑️": "5235929467309796721",
 	"🗑":  "5235929467309796721",
 
-	// 6. Unlock / Security
+	// 19. Unlock / Security
 	"🔓": "5465443379917629504",
 	"🔒": "5465443379917629504",
 
-	// 7. Rocket / Speed / Pong
+	// 20. Rocket / Speed / Pong
 	"🚀": "5188481279963715781",
 	"✈️": "5188481279963715781",
 
-	// 8. Globe / Laugh
+	// 21. Globe / Community
 	"🤣": "6105003734444541829",
 	"🌐": "6105003734444541829",
 	"🌍": "6105003734444541829",
 	"🌎": "6105003734444541829",
 	"🌏": "6105003734444541829",
 
-	// 9. Calendar / Date / Schedule
+	// 22. Calendar / Date / Schedule
 	"🗓️": "5413879192267805083",
 	"🗓":  "5413879192267805083",
 	"📅":  "5413879192267805083",
 	"📆":  "5413879192267805083",
 
-	// 10. Crown / Owner / VIP
+	// 23. Crown / Owner / VIP
 	"👑": "5433758796289685818",
 
-	// 11. Robot / Bot
+	// 24. Robot / Bot
 	"🤖": "5355051922862653659",
 
-	// 12. Shield / Security / Protection
-	"🛡️": "5465154440287757794",
-	"🛡":  "5465154440287757794",
-
-	// 13. Sparkles / Stars / Premium
+	// 25. Sparkles / Stars / Premium
 	"✨️": "5451636889717062286",
 	"✨":  "5451636889717062286",
 	"🌟":  "5451636889717062286",
 	"⭐":  "5451636889717062286",
 	"⭐️": "5451636889717062286",
 
-	// 14. Thumbs Up / Verified
+	// 26. Thumbs Up / Verified
 	"👍":  "5465465194056525619",
 	"👍🏻": "5465465194056525619",
 	"👍🏼": "5465465194056525619",
@@ -85,43 +145,48 @@ var EmojiMapping = map[string]string{
 	"✅":  "5465465194056525619",
 	"✔️":  "5465465194056525619",
 
-	// 15. Butterfly / Flower
+	// 27. Butterfly
 	"🦋": "5289862389552919154",
-	"🌸": "5289862389552919154",
-	"🌺": "5289862389552919154",
 
-	// 16. Tools / Wrench / Config
+	// 28. Tools / Wrench / Config
 	"🛠️": "5462921117423384478",
 	"🛠":  "5462921117423384478",
 	"🔧":  "5462921117423384478",
 	"🔨":  "5462921117423384478",
 
-	// 17. Bolt / Lightning / Latency
+	// 29. Bolt / Lightning / Latency
 	"⚡️": "5438539112070002676",
 	"⚡":  "5438539112070002676",
 }
 
 // Global Theme Emojis
 var (
-	IconCrown    = CustomEmoji("👑")
-	IconShield   = CustomEmoji("🛡️")
-	IconSparkles = CustomEmoji("✨")
-	IconCheck    = CustomEmoji("✅")
-	IconCross    = CustomEmoji("❌")
-	IconFlower   = CustomEmoji("🌸")
-	IconBolt     = CustomEmoji("⚡")
-	IconLock     = CustomEmoji("🔒")
-	IconWarning  = CustomEmoji("⚠️")
-	IconBroom    = CustomEmoji("🧹")
-	IconRobot    = CustomEmoji("🤖")
-	IconPin      = CustomEmoji("📌")
-	IconStats    = CustomEmoji("📊")
-	IconGear     = CustomEmoji("⚙️")
-	IconThumbsUp = CustomEmoji("👍")
+	IconCrown     = CustomEmoji("👑")
+	IconShield    = CustomEmoji("🛡️")
+	IconSparkles  = CustomEmoji("✨")
+	IconCheck     = CustomEmoji("✅")
+	IconCross     = CustomEmoji("❌")
+	IconFlower    = CustomEmoji("🌸")
+	IconBolt      = CustomEmoji("⚡")
+	IconLock      = CustomEmoji("🔒")
+	IconWarning   = CustomEmoji("⚠️")
+	IconBroom     = CustomEmoji("🧹")
+	IconRobot     = CustomEmoji("🤖")
+	IconPin       = CustomEmoji("📌")
+	IconStats     = CustomEmoji("📊")
+	IconGear      = CustomEmoji("⚙️")
+	IconThumbsUp  = CustomEmoji("👍")
 	IconButterfly = CustomEmoji("🦋")
-	IconTools    = CustomEmoji("🛠️")
-	IconRocket   = CustomEmoji("🚀")
-	IconCalendar = CustomEmoji("🗓️")
+	IconTools     = CustomEmoji("🛠️")
+	IconRocket    = CustomEmoji("🚀")
+	IconCalendar  = CustomEmoji("🗓️")
+	IconDiamond   = CustomEmoji("💎")
+	IconBooks     = CustomEmoji("📚")
+	IconMegaphone = CustomEmoji("📢")
+	IconPolice    = CustomEmoji("👮")
+	IconNotes     = CustomEmoji("📝")
+	IconStopwatch = CustomEmoji("⏱️")
+	IconInfinity  = CustomEmoji("♾️")
 )
 
 var (
