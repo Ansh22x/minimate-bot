@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html"
 	"log"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -14,82 +13,92 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// Verified Public Custom Emoji IDs
+// Premium Custom Emoji IDs provided for MiniMate Pro
 var EmojiMapping = map[string]string{
-	"👑":  "5433758796289685818",
-	"🛡️": "5251203410396458957",
-	"🛡":  "5251203410396458957",
-	"✨":  "5325547803936572038",
-	"✨️": "5325547803936572038",
-	"🌟":  "5469741319330996757",
-	"⭐":  "5438496463044752972",
-	"⭐️": "5438496463044752972",
-	"✅":  "5427009714745517609",
-	"✔️": "5427009714745517609",
-	"❌":  "5426990022328849767",
-	"❎":  "5426990022328849767",
-	"🌸":  "5375525443552162306",
-	"🌺":  "5375525443552162306",
-	"⚡":  "5445284980978629559",
-	"⚡️": "5445284980978629559",
-	"🔥":  "5425029094158917849",
-	"🔒":  "5472097787438965706",
-	"🔓":  "5472097787438965706",
-	"⚠️": "5469903029144657419",
-	"⚠️️": "5469903029144657419",
-	"🚨":  "5469903029144657419",
-	"🤖":  "5429197991992899022",
-	"📌":  "5465223395895427227",
-	"📍":  "5465223395895427227",
-	"📊":  "5431736780883764835",
-	"📈":  "5431736780883764835",
-	"📉":  "5431736780883764835",
-	"⚙️": "5472164874811352210",
-	"⚙":   "5472164874811352210",
-	"🔧":  "5472164874811352210",
-	"🛠️": "5472164874811352210",
-	"💎":  "5406631276042002796",
-	"💍":  "5406631276042002796",
-	"💬":  "5409006440209724128",
-	"🗨️": "5409006440209724128",
-	"👤":  "5373147822998708337",
-	"👥":  "5373147822998708337",
-	"⏱️": "5465451838880894084",
-	"⏱":   "5465451838880894084",
-	"⏳":  "5465451838880894084",
-	"⏰":  "5465451838880894084",
-	"🕒":  "5465451838880894084",
-	"🚀":  "5461152000538680615",
-	"✈️": "5461152000538680615",
-	"🛸":  "5461152000538680615",
-	"🎯":  "5438496463044752972",
-	"🏆":  "5433758796289685818",
-	"🥇":  "5433758796289685818",
-	"🔔":  "5438496463044752972",
-	"🔕":  "5469903029144657419",
-	"📢":  "5409006440209724128",
-	"📣":  "5409006440209724128",
-	"💡":  "5469741319330996757",
-	"🔍":  "5431736780883764835",
-	"🔎":  "5431736780883764835",
-	"📜":  "5449660075184508972",
-	"📋":  "5449660075184508972",
-	"📁":  "5449660075184508972",
-	"📂":  "5449660075184508972",
-	"📄":  "5449660075184508972",
-	"📖":  "5449660075184508972",
-	"🎫":  "5377599075237502153",
-	"🏷️": "5235582317988171528",
-	"🏷":   "5235582317988171528",
-	"🔙":  "5400169738263352182",
-	"🔄":  "6122764622509380932",
-	"👋":  "5472354553527541051",
-	"🔨":  "5453991094435997597",
-	"🧹":  "5461047575379466857",
-	"🌐":  "5812392946917445652",
-	"🔇":  "5469903029144657419",
-	"🗑️": "5461047575379466857",
-	"🗑":  "5461047575379466857",
+	// 1. Cross / Error / Ban
+	"❌": "5210952531676504517",
+	"❎": "5210952531676504517",
+
+	// 2. Pin / Location
+	"📌": "5292291996717690768",
+	"📍": "5292291996717690768",
+
+	// 3. Stats / Charts / Dashboard
+	"📊": "5231200819986047254",
+	"📈": "5231200819986047254",
+	"📉": "5231200819986047254",
+
+	// 4. Gear / Settings / System
+	"⚙️": "5341715473882955310",
+	"⚙":  "5341715473882955310",
+
+	// 5. Broom / Cleanup / Purge
+	"🧹": "5235929467309796721",
+	"🗑️": "5235929467309796721",
+	"🗑":  "5235929467309796721",
+
+	// 6. Unlock / Security
+	"🔓": "5465443379917629504",
+	"🔒": "5465443379917629504",
+
+	// 7. Rocket / Speed / Pong
+	"🚀": "5188481279963715781",
+	"✈️": "5188481279963715781",
+
+	// 8. Globe / Laugh
+	"🤣": "6105003734444541829",
+	"🌐": "6105003734444541829",
+	"🌍": "6105003734444541829",
+	"🌎": "6105003734444541829",
+	"🌏": "6105003734444541829",
+
+	// 9. Calendar / Date / Schedule
+	"🗓️": "5413879192267805083",
+	"🗓":  "5413879192267805083",
+	"📅":  "5413879192267805083",
+	"📆":  "5413879192267805083",
+
+	// 10. Crown / Owner / VIP
+	"👑": "5433758796289685818",
+
+	// 11. Robot / Bot
+	"🤖": "5355051922862653659",
+
+	// 12. Shield / Security / Protection
+	"🛡️": "5465154440287757794",
+	"🛡":  "5465154440287757794",
+
+	// 13. Sparkles / Stars / Premium
+	"✨️": "5451636889717062286",
+	"✨":  "5451636889717062286",
+	"🌟":  "5451636889717062286",
+	"⭐":  "5451636889717062286",
+	"⭐️": "5451636889717062286",
+
+	// 14. Thumbs Up / Verified
+	"👍":  "5465465194056525619",
+	"👍🏻": "5465465194056525619",
+	"👍🏼": "5465465194056525619",
+	"👍🏽": "5465465194056525619",
+	"👍🏾": "5465465194056525619",
+	"👍🏿": "5465465194056525619",
+	"✅":  "5465465194056525619",
+	"✔️":  "5465465194056525619",
+
+	// 15. Butterfly / Flower
+	"🦋": "5289862389552919154",
+	"🌸": "5289862389552919154",
+	"🌺": "5289862389552919154",
+
+	// 16. Tools / Wrench / Config
+	"🛠️": "5462921117423384478",
+	"🛠":  "5462921117423384478",
+	"🔧":  "5462921117423384478",
+	"🔨":  "5462921117423384478",
+
+	// 17. Bolt / Lightning / Latency
+	"⚡️": "5438539112070002676",
+	"⚡":  "5438539112070002676",
 }
 
 // Global Theme Emojis
@@ -108,12 +117,17 @@ var (
 	IconPin      = CustomEmoji("📌")
 	IconStats    = CustomEmoji("📊")
 	IconGear     = CustomEmoji("⚙️")
+	IconThumbsUp = CustomEmoji("👍")
+	IconButterfly = CustomEmoji("🦋")
+	IconTools    = CustomEmoji("🛠️")
+	IconRocket   = CustomEmoji("🚀")
+	IconCalendar = CustomEmoji("🗓️")
 )
 
 var (
-	customEmojiRegex    = regexp.MustCompile(`<tg-emoji\s+emoji-id="[0-9]+">([^<]+)</tg-emoji>`)
-	compiledEmojiRegex  *regexp.Regexp
-	compiledEmojiOnce   sync.Once
+	customEmojiRegex   = regexp.MustCompile(`<tg-emoji\s+emoji-id="[0-9]+">([^<]+)</tg-emoji>`)
+	compiledEmojiRegex *regexp.Regexp
+	compiledEmojiOnce  sync.Once
 )
 
 func CustomEmoji(emojiChar string) string {
@@ -157,26 +171,46 @@ func ReplaceEmojis(text string) string {
 	})
 }
 
-var (
-	customEmojisSupported = (os.Getenv("ENABLE_CUSTOM_EMOJIS") == "true")
-	emojiTestLock         sync.RWMutex
-)
-
-// SetCustomEmojisSupported dynamically enables or disables custom emoji overhead
-func SetCustomEmojisSupported(supported bool) {
-	emojiTestLock.Lock()
-	customEmojisSupported = supported
-	emojiTestLock.Unlock()
+// ShouldUseCustomEmojis returns true if chat is a private DM (> 0) or VIP group (< 0 with active VIP)
+func ShouldUseCustomEmojis(chatID int64) bool {
+	if chatID == 0 {
+		return false
+	}
+	// Direct message (DM) with user in private chat
+	if chatID > 0 {
+		return true
+	}
+	// Group / Channel -> only if VIP subscription is active
+	return IsVIPChat(chatID)
 }
 
-// IsCustomEmojisSupported returns whether custom emojis are active
-func IsCustomEmojisSupported() bool {
-	emojiTestLock.RLock()
-	defer emojiTestLock.RUnlock()
-	return customEmojisSupported
+// getChatIDFromChattable extracts chatID from any tgbotapi message/edit config
+func getChatIDFromChattable(c tgbotapi.Chattable) int64 {
+	switch v := c.(type) {
+	case tgbotapi.MessageConfig:
+		return v.ChatID
+	case tgbotapi.EditMessageTextConfig:
+		return v.ChatID
+	case tgbotapi.EditMessageCaptionConfig:
+		return v.ChatID
+	case tgbotapi.VideoConfig:
+		return v.ChatID
+	case tgbotapi.PhotoConfig:
+		return v.ChatID
+	case tgbotapi.AnimationConfig:
+		return v.ChatID
+	case tgbotapi.DocumentConfig:
+		return v.ChatID
+	case tgbotapi.AudioConfig:
+		return v.ChatID
+	case tgbotapi.VoiceConfig:
+		return v.ChatID
+	default:
+		return 0
+	}
 }
 
-// SafeSend sends or edits a message with ultra-low latency and optional custom emoji fallback
+// SafeSend sends or edits a message with smart custom emoji handling (DM & VIP groups) and automatic fallback
 func SafeSend(bot *tgbotapi.BotAPI, chattable tgbotapi.Chattable) (tgbotapi.Message, error) {
 	applyEmojis := func(c tgbotapi.Chattable, replace bool) tgbotapi.Chattable {
 		switch v := c.(type) {
@@ -250,14 +284,37 @@ func SafeSend(bot *tgbotapi.BotAPI, chattable tgbotapi.Chattable) (tgbotapi.Mess
 				}
 				return v
 			}
+		case tgbotapi.AudioConfig:
+			if v.ParseMode == "HTML" || v.ParseMode == "" {
+				v.ParseMode = "HTML"
+				if replace {
+					v.Caption = ReplaceEmojis(v.Caption)
+				} else {
+					v.Caption = StripCustomEmojis(v.Caption)
+				}
+				return v
+			}
+		case tgbotapi.VoiceConfig:
+			if v.ParseMode == "HTML" || v.ParseMode == "" {
+				v.ParseMode = "HTML"
+				if replace {
+					v.Caption = ReplaceEmojis(v.Caption)
+				} else {
+					v.Caption = StripCustomEmojis(v.Caption)
+				}
+				return v
+			}
 		}
 		return c
 	}
 
-	// 1. Fast path: If custom emojis are not enabled, send clean unicode formatted message in 1 single HTTPS call (30-50ms)
-	if !IsCustomEmojisSupported() {
-		cleanTry := applyEmojis(chattable, false)
-		resp, err := bot.Request(cleanTry)
+	chatID := getChatIDFromChattable(chattable)
+	useCustom := ShouldUseCustomEmojis(chatID)
+
+	// 1. Free group path: Send clean standard unicode emojis in 1 single call (0 overhead)
+	if !useCustom {
+		cleanMsg := applyEmojis(chattable, false)
+		resp, err := bot.Request(cleanMsg)
 		if err == nil {
 			var msg tgbotapi.Message
 			_ = json.Unmarshal(resp.Result, &msg)
@@ -266,27 +323,25 @@ func SafeSend(bot *tgbotapi.BotAPI, chattable tgbotapi.Chattable) (tgbotapi.Mess
 		return tgbotapi.Message{}, err
 	}
 
-	// 2. Custom Emoji path: Try custom emojis first
-	firstTry := applyEmojis(chattable, true)
-	resp, err := bot.Request(firstTry)
+	// 2. DM / VIP Group path: Try sending with premium custom emojis
+	premiumMsg := applyEmojis(chattable, true)
+	resp, err := bot.Request(premiumMsg)
 	if err == nil {
 		var msg tgbotapi.Message
 		_ = json.Unmarshal(resp.Result, &msg)
 		return msg, nil
 	}
 
-	// 3. Fallback: Telegram rejected custom emojis -> automatically disable overhead for future calls
-	log.Printf("⚠️ SafeSend: Custom emojis rejected by Telegram (%v). Switching to ultra-fast standard emoji mode.", err)
-	SetCustomEmojisSupported(false)
-
-	fallbackTry := applyEmojis(chattable, false)
-	resp2, err2 := bot.Request(fallbackTry)
+	// 3. Fallback: Telegram rejected custom emojis (e.g. DOCUMENT_INVALID) -> Send clean unicode message
+	log.Printf("⚠️ SafeSend: Custom emojis rejected for chat %d (%v). Falling back to clean emojis.", chatID, err)
+	fallbackMsg := applyEmojis(chattable, false)
+	resp2, err2 := bot.Request(fallbackMsg)
 	if err2 == nil {
 		var msg tgbotapi.Message
 		_ = json.Unmarshal(resp2.Result, &msg)
 		return msg, nil
 	}
-	log.Printf("❌ SafeSend fallback failed: %v", err2)
+
 	return tgbotapi.Message{}, err2
 }
 

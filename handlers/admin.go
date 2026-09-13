@@ -90,18 +90,42 @@ func isAdmin(bot *tgbotapi.BotAPI, chatID int64, userID int64) bool {
 	return member.Status == "administrator" || member.Status == "creator"
 }
 
+var (
+	vipCacheMutex sync.RWMutex
+	vipCacheMap   = make(map[int64]bool)
+)
+
+func SetVIPCache(chatID int64, isVIP bool) {
+	vipCacheMutex.Lock()
+	vipCacheMap[chatID] = isVIP
+	vipCacheMutex.Unlock()
+}
+
 // IsVIPChat checks if a given group has an active VIP / Premium subscription
 func IsVIPChat(chatID int64) bool {
-	var isVIP bool
+	if chatID >= 0 {
+		return false
+	}
+	vipCacheMutex.RLock()
+	isVIP, cached := vipCacheMap[chatID]
+	vipCacheMutex.RUnlock()
+	if cached {
+		return isVIP
+	}
+
+	var active bool
 	var expiresAt *time.Time
 	query := "SELECT is_vip, expires_at FROM chat_subscriptions WHERE chat_id = $1"
-	err := database.Pool.QueryRow(context.Background(), query, chatID).Scan(&isVIP, &expiresAt)
-	if err != nil || !isVIP {
+	err := database.Pool.QueryRow(context.Background(), query, chatID).Scan(&active, &expiresAt)
+	if err != nil || !active {
+		SetVIPCache(chatID, false)
 		return false
 	}
 	if expiresAt != nil && time.Now().After(*expiresAt) {
+		SetVIPCache(chatID, false)
 		return false
 	}
+	SetVIPCache(chatID, true)
 	return true
 }
 
@@ -1302,8 +1326,10 @@ func HandleSetVIP(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) 
 		return
 	}
 
-	text := fmt.Sprintf(`💎 <b>VIP Subscription Activated!</b>
+	SetVIPCache(targetChatID, true)
 
+	text := fmt.Sprintf(`💎 <b>VIP Subscription Activated!</b>
+ 
 <blockquote expandable>👑 <b>Target Chat:</b> <code>%d</code>
 ⏳ <b>Duration:</b> <code>%s</code>
 🛡️ <b>Status:</b> Active VIP Shield Enabled
@@ -1317,7 +1343,7 @@ func HandleSetVIP(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) 
 		remoteNotice := fmt.Sprintf(`💎 <b>Congratulations! This chat has been upgraded to MiniMate VIP!</b>
 
 <blockquote expandable>⏳ <b>Duration:</b> <code>%s</code>
-✨ All premium security shields and unlimited storage are now active!</blockquote>`, html.EscapeString(durationLabel))
+✨ All premium security shields and animated custom emojis are now active!</blockquote>`, html.EscapeString(durationLabel))
 		sendHTMLMessage(bot, targetChatID, remoteNotice)
 	}
 }
@@ -1353,6 +1379,8 @@ func HandleRmVIP(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ Database error revoking VIP subscription.")
 		return
 	}
+
+	SetVIPCache(targetChatID, false)
 
 	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("🗑️ VIP subscription revoked for chat <code>%d</code>.", targetChatID))
 }
