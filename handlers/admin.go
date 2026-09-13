@@ -1410,7 +1410,7 @@ func HandleVIPStatus(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args strin
 ⚡ <b>Speed:</b> Standard Polling
 🎨 <b>Theme:</b> Unicode High-Definition Emojis</blockquote>
 
-👑 <i>Upgrade to VIP for 0ms priority polling, PokeEmpire animated themes, and Anti-Raid shields! Use <code>/premium</code> to contact @%s.</i>`,
+👑 <i>Upgrade to VIP for 0ms priority polling, Premium animated themes, and Anti-Raid shields! Use <code>/premium</code> to contact @%s.</i>`,
 			targetChatID, html.EscapeString(config.OwnerUsername))
 		sendHTMLMessage(bot, message.Chat.ID, statusText)
 		return
@@ -1433,7 +1433,7 @@ func HandleVIPStatus(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args strin
 ⏳ <b>Expiry:</b> %s
 ⚡ <b>Speed:</b> Ultra-Fast High-Priority Channel
 🛡️ <b>Anti-Raid:</b> Active &amp; Guarded
-🎨 <b>Theme:</b> PokeEmpire Animated Custom Emojis</blockquote>`,
+🎨 <b>Theme:</b> Premium Animated Custom Emojis</blockquote>`,
 		html.EscapeString(planName), targetChatID, html.EscapeString(expiryText))
 
 	sendHTMLMessage(bot, message.Chat.ID, text)

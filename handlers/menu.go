@@ -118,7 +118,7 @@ func HandleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 <blockquote expandable>✨ <b>Exclusive VIP Features:</b>
 • ⚡ <b>Ultra-High Priority Polling:</b> 0ms response latency
 • 🛡️ <b>Advanced AI Anti-Raid:</b> Auto-ban spam bot waves
-• 🎨 <b>Custom Emoji Packs:</b> PokeEmpire animated theme
+• 🎨 <b>Custom Emoji Packs:</b> Premium animated themes
 • ♾️ <b>Unlimited Storage:</b> Unlimited filters & notes
 • 👑 <b>Dedicated VIP Support:</b> 24/7 direct developer assistance</blockquote>
 
