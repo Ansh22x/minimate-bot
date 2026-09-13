@@ -40,6 +40,9 @@ func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		return
 	}
 
+	// Track message in memory cache for smart filtering & fast purging
+	TrackMessage(update.Message)
+
 	// Automatically track active group in database asynchronously (0ms latency impact)
 	go RecordChatActivity(update.Message.Chat)
 
@@ -491,8 +494,8 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 	// -------------------------
 	// 10. MISC & CLEANUP
 	// -------------------------
-	case "purge":
-		HandlePurge(bot, message)
+	case "purge", "spurge", "purgestickers", "purgesticker", "stickerpurge", "userpurge", "purgeme":
+		HandlePurge(bot, message, command, args)
 		sendReply = false
 
 	case "del":

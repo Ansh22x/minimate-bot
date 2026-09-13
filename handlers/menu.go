@@ -79,7 +79,10 @@ func HandleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 	case "tab_tools":
 		newText = `🧹 <b>𝐂𝐡𝐚𝐭 𝐓𝐨𝐨𝐥𝐬 &amp; 𝐔𝐭𝐢𝐥𝐢𝐭𝐢𝐞𝐬</b>
 
-<blockquote expandable>• <code>/purge</code> — Mass delete replied to current message
+<blockquote expandable>• <code>/purge [all]</code> — Mass delete replied to current message
+• <code>/purge &lt;count&gt;</code> — Delete last N messages (e.g. <code>/purge 50</code>)
+• <code>/purge user</code> or <code>/spurge</code> — Purge replied user's messages
+• <code>/purge stickers</code> — Purge all stickers in range
 • <code>/del</code> — Delete replied message immediately
 • <code>/pin</code> — Pin replied message quietly
 • <code>/pin loud</code> — Pin message with notification

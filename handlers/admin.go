@@ -1039,44 +1039,7 @@ func HandleDel(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	bot.Request(tgbotapi.NewDeleteMessage(message.Chat.ID, message.MessageID))
 }
 
-// HandlePurge deletes messages between the replied message and the command
-func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Only admins can purge messages.")
-		return
-	}
-	if message.ReplyToMessage == nil {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Reply to the message where you want the purge to start.")
-		return
-	}
 
-	startID := message.ReplyToMessage.MessageID
-	endID := message.MessageID
-
-	if startID > endID {
-		startID, endID = endID, startID
-	}
-
-	go func(chatID int64, start, end int) {
-		count := 0
-		for id := start; id <= end; id++ {
-			del := tgbotapi.NewDeleteMessage(chatID, id)
-			_, err := bot.Request(del)
-			if err == nil {
-				count++
-			}
-			time.Sleep(30 * time.Millisecond)
-		}
-
-		confirm := tgbotapi.NewMessage(chatID, fmt.Sprintf("🧹 Purged <b>%d</b> messages.", count))
-		confirm.ParseMode = "HTML"
-		sent, err := bot.Send(confirm)
-		if err == nil {
-			time.Sleep(3 * time.Second)
-			bot.Request(tgbotapi.NewDeleteMessage(chatID, sent.MessageID))
-		}
-	}(message.Chat.ID, startID, endID)
-}
 
 // HandlePinCommand handles pin, unpin, unpinall
 func HandlePinCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string) {
