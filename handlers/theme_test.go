@@ -12,13 +12,13 @@ func TestReplaceEmojis(t *testing.T) {
 	if !strings.Contains(output, `<tg-emoji emoji-id="5433758796289685818">👑</tg-emoji>`) {
 		t.Errorf("Expected crown custom emoji tag, got: %s", output)
 	}
-	if !strings.Contains(output, `<tg-emoji emoji-id="5375525443552162306">🌸</tg-emoji>`) {
+	if !strings.Contains(output, `<tg-emoji emoji-id="5213205860498549992">🌸</tg-emoji>`) {
 		t.Errorf("Expected flower custom emoji tag, got: %s", output)
 	}
-	if !strings.Contains(output, `<tg-emoji emoji-id="5325547803936572038">✨</tg-emoji>`) {
+	if !strings.Contains(output, `<tg-emoji emoji-id="5451636889717062286">✨</tg-emoji>`) {
 		t.Errorf("Expected sparkles custom emoji tag, got: %s", output)
 	}
-	if !strings.Contains(output, `<tg-emoji emoji-id="5251203410396458957">🛡️</tg-emoji>`) {
+	if !strings.Contains(output, `<tg-emoji emoji-id="5197288647275071607">🛡️</tg-emoji>`) {
 		t.Errorf("Expected shield custom emoji tag, got: %s", output)
 	}
 

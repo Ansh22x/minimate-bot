@@ -360,7 +360,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 	// 2. ADMIN & MODERATION
 	// -------------------------
 	case "ban":
-		HandleBan(bot, message)
+		HandleBan(bot, message, args)
 		sendReply = false
 
 	case "tban":
@@ -368,11 +368,11 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		sendReply = false
 
 	case "unban":
-		HandleUnban(bot, message)
+		HandleUnban(bot, message, args)
 		sendReply = false
 
 	case "mute":
-		HandleMute(bot, message)
+		HandleMute(bot, message, args)
 		sendReply = false
 
 	case "tmute":
@@ -380,11 +380,11 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		sendReply = false
 
 	case "unmute":
-		HandleUnmute(bot, message)
+		HandleUnmute(bot, message, args)
 		sendReply = false
 
 	case "kick":
-		HandleKick(bot, message)
+		HandleKick(bot, message, args)
 		sendReply = false
 
 	case "promote", "fullpromote", "spromote", "snrpromote", "jrpromote", "jpromote":
@@ -392,7 +392,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		sendReply = false
 
 	case "demote":
-		HandleDemote(bot, message)
+		HandleDemote(bot, message, args)
 		sendReply = false
 
 	case "adminlist", "admins", "staff":

@@ -26,8 +26,10 @@ type CachedMessage struct {
 
 var (
 	// chatID -> list of recent CachedMessage (up to 3,000 per chat)
-	chatMsgCache  = make(map[int64][]CachedMessage)
-	msgCacheMutex sync.RWMutex
+	chatMsgCache    = make(map[int64][]CachedMessage)
+	chatUserCache   = make(map[int64]map[string]*tgbotapi.User)
+	chatUserIDCache = make(map[int64]map[int64]*tgbotapi.User)
+	msgCacheMutex   sync.RWMutex
 )
 
 // TrackMessage records incoming messages into the memory ring buffer
@@ -59,6 +61,18 @@ func TrackMessage(msg *tgbotapi.Message) {
 	msgCacheMutex.Lock()
 	defer msgCacheMutex.Unlock()
 
+	// Update user lookup maps
+	if msg.From != nil {
+		if _, ok := chatUserCache[msg.Chat.ID]; !ok {
+			chatUserCache[msg.Chat.ID] = make(map[string]*tgbotapi.User)
+			chatUserIDCache[msg.Chat.ID] = make(map[int64]*tgbotapi.User)
+		}
+		if msg.From.UserName != "" {
+			chatUserCache[msg.Chat.ID][strings.ToLower(msg.From.UserName)] = msg.From
+		}
+		chatUserIDCache[msg.Chat.ID][msg.From.ID] = msg.From
+	}
+
 	list := chatMsgCache[msg.Chat.ID]
 	list = append(list, CachedMessage{
 		MessageID:      msg.MessageID,
@@ -76,6 +90,31 @@ func TrackMessage(msg *tgbotapi.Message) {
 		list = list[len(list)-3000:]
 	}
 	chatMsgCache[msg.Chat.ID] = list
+}
+
+// FindUserByUsername finds a user by their @username in a chat
+func FindUserByUsername(chatID int64, username string) *tgbotapi.User {
+	msgCacheMutex.RLock()
+	defer msgCacheMutex.RUnlock()
+	clean := strings.ToLower(strings.TrimPrefix(username, "@"))
+	if m, ok := chatUserCache[chatID]; ok {
+		if u, found := m[clean]; found {
+			return u
+		}
+	}
+	return nil
+}
+
+// FindUserByID finds a user by their numeric UserID in a chat
+func FindUserByID(chatID int64, userID int64) *tgbotapi.User {
+	msgCacheMutex.RLock()
+	defer msgCacheMutex.RUnlock()
+	if m, ok := chatUserIDCache[chatID]; ok {
+		if u, found := m[userID]; found {
+			return u
+		}
+	}
+	return nil
 }
 
 // deleteMessagesBatch deletes message IDs concurrently in Telegram 100-item chunks
