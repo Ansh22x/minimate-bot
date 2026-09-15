@@ -452,7 +452,9 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 	// -------------------------
 	// 4. WARNINGS
 	// -------------------------
-	case "warn", "dwarn", "unwarn", "warns", "warnlimit", "warnmode", "rmwarns":
+	case "warn", "dwarn", "unwarn", "rmwarn", "delwarn", "removewarn", "remwarn", "unwarns",
+		"rmwarns", "resetwarns", "delwarns", "clearwarns", "resetwarn", "clearwarn", "removewarns", "removeallwarns",
+		"warns", "warnlimit", "warnmode":
 		HandleWarnCommand(bot, message, command, args)
 		sendReply = false
 

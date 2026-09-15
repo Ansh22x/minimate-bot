@@ -51,8 +51,8 @@ func HandleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 • <code>/tmute &lt;time&gt;</code> — Temp-mute (e.g. <code>/tmute 30m</code>)
 • <code>/warn</code> — Issue a warning strike (3 strikes = auto-ban)
 • <code>/dwarn</code> — Delete replied message + issue warn strike
-• <code>/unwarn</code> — Remove 1 warning strike from user
-• <code>/rmwarns</code> — Reset all warnings for a user
+• <code>/unwarn</code> / <code>/rmwarn</code> — Remove 1 warning strike
+• <code>/resetwarns</code> / <code>/rmwarns</code> — Reset all warnings for a user
 • <code>/warns</code> — Check your warning strike count
 • <code>/promote [title]</code> — Promote to Jr. Admin (or 2nd time to Sr. Admin)
 • <code>/fullpromote [title]</code> — Promote directly to Sr. Admin (Full Rights)

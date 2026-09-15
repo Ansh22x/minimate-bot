@@ -25,29 +25,22 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 	switch cmd {
 	case "warn", "dwarn":
 		if !isUserAdmin {
-			msg := tgbotapi.NewMessage(chatID, "❌ Only admins can warn users.")
-			msg.ParseMode = "HTML"
-			SafeSend(bot, msg)
-			return
-		}
-		if message.ReplyToMessage == nil || message.ReplyToMessage.From == nil {
-			msg := tgbotapi.NewMessage(chatID, "❌ Reply to a valid user message to warn them.")
-			msg.ParseMode = "HTML"
-			SafeSend(bot, msg)
+			sendHTMLMessage(bot, chatID, "❌ Only admins can warn users.")
 			return
 		}
 
-		target := message.ReplyToMessage.From
+		target, reason := ExtractTargetUser(bot, message, args)
+		if target == nil {
+			sendHTMLMessage(bot, chatID, "❌ Reply to a user's message or specify their <code>@username</code> / User ID to warn them.\n\n<i>Example:</i> <code>/warn @username [reason]</code> or <code>/warn [reason]</code> (as reply)")
+			return
+		}
+
 		if target.ID == bot.Self.ID {
-			msg := tgbotapi.NewMessage(chatID, "❌ I cannot warn myself.")
-			msg.ParseMode = "HTML"
-			SafeSend(bot, msg)
+			sendHTMLMessage(bot, chatID, "❌ I cannot warn myself.")
 			return
 		}
 		if isAdmin(bot, chatID, target.ID) {
-			msg := tgbotapi.NewMessage(chatID, "❌ You cannot issue warnings to an administrator.")
-			msg.ParseMode = "HTML"
-			SafeSend(bot, msg)
+			sendHTMLMessage(bot, chatID, "❌ You cannot issue warnings to an administrator.")
 			return
 		}
 
@@ -61,25 +54,21 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 		`
 		err := database.Pool.QueryRow(context.Background(), query, chatID, target.ID).Scan(&newWarnCount)
 		if err != nil {
-			msg := tgbotapi.NewMessage(chatID, "❌ Database error while issuing warning.")
-			msg.ParseMode = "HTML"
-			SafeSend(bot, msg)
+			sendHTMLMessage(bot, chatID, "❌ Database error while issuing warning.")
 			return
 		}
 
-		reason := "No reason provided."
-		if strings.TrimSpace(args) != "" {
-			reason = strings.TrimSpace(args)
+		reasonText := "No reason provided."
+		if strings.TrimSpace(reason) != "" {
+			reasonText = strings.TrimSpace(reason)
 		}
 
 		warnText := fmt.Sprintf("⚠️ <b>%s</b> has been warned.\n<b>Reason:</b> %s\n<b>Warnings:</b> %d/3",
-			html.EscapeString(target.FirstName), html.EscapeString(reason), newWarnCount)
-		msg := tgbotapi.NewMessage(chatID, warnText)
-		msg.ParseMode = "HTML"
-		SafeSend(bot, msg)
+			html.EscapeString(target.FirstName), html.EscapeString(reasonText), newWarnCount)
+		sendHTMLMessage(bot, chatID, warnText)
 
-		// Delete the offending message if the command is /dwarn
-		if cmd == "dwarn" {
+		// Delete the offending message if the command is /dwarn and it was a reply
+		if cmd == "dwarn" && message.ReplyToMessage != nil {
 			bot.Request(tgbotapi.NewDeleteMessage(chatID, message.ReplyToMessage.MessageID))
 		}
 
@@ -90,29 +79,25 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			}
 			bot.Request(banConfig)
 
-			banMsg := tgbotapi.NewMessage(chatID, fmt.Sprintf("🚫 <b>%s</b> reached 3 warnings and was banned.", html.EscapeString(target.FirstName)))
-			banMsg.ParseMode = "HTML"
-			SafeSend(bot, banMsg)
+			banMsg := fmt.Sprintf("🚫 <b>%s</b> reached 3 warnings and was banned.", html.EscapeString(target.FirstName))
+			sendHTMLMessage(bot, chatID, banMsg)
 
 			// Reset warns after ban
 			database.Pool.Exec(context.Background(), "DELETE FROM user_warns WHERE chat_id = $1 AND user_id = $2", chatID, target.ID)
 		}
 
-	case "unwarn":
+	case "unwarn", "rmwarn", "delwarn", "removewarn", "remwarn", "unwarns":
 		if !isUserAdmin {
-			msg := tgbotapi.NewMessage(chatID, "❌ Only admins can remove warnings.")
-			msg.ParseMode = "HTML"
-			SafeSend(bot, msg)
-			return
-		}
-		if message.ReplyToMessage == nil || message.ReplyToMessage.From == nil {
-			msg := tgbotapi.NewMessage(chatID, "❌ Reply to a user to reduce their warnings.")
-			msg.ParseMode = "HTML"
-			SafeSend(bot, msg)
+			sendHTMLMessage(bot, chatID, "❌ Only admins can remove warnings.")
 			return
 		}
 
-		target := message.ReplyToMessage.From
+		target, _ := ExtractTargetUser(bot, message, args)
+		if target == nil {
+			sendHTMLMessage(bot, chatID, "❌ Reply to a user's message or specify their <code>@username</code> / User ID to remove a warning.\n\n<i>Example:</i> <code>/unwarn @username</code> or <code>/rmwarn</code> (as reply)")
+			return
+		}
+
 		var count int
 		query := `
 			UPDATE user_warns 
@@ -125,38 +110,33 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			count = 0
 		}
 
-		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Removed a warning for <b>%s</b>. Warnings: %d/3", html.EscapeString(target.FirstName), count))
-		msg.ParseMode = "HTML"
-		SafeSend(bot, msg)
+		sendHTMLMessage(bot, chatID, fmt.Sprintf("✅ Removed a warning for <b>%s</b>.\n<b>Warnings:</b> %d/3", html.EscapeString(target.FirstName), count))
 
-	case "rmwarns":
+	case "rmwarns", "resetwarns", "delwarns", "clearwarns", "resetwarn", "clearwarn", "removewarns", "removeallwarns":
 		if !isUserAdmin {
-			bot.Send(tgbotapi.NewMessage(chatID, "❌ Only admins can reset warnings."))
-			return
-		}
-		if message.ReplyToMessage == nil || message.ReplyToMessage.From == nil {
-			bot.Send(tgbotapi.NewMessage(chatID, "❌ Reply to a user to reset their warnings."))
+			sendHTMLMessage(bot, chatID, "❌ Only admins can reset warnings.")
 			return
 		}
 
-		target := message.ReplyToMessage.From
+		target, _ := ExtractTargetUser(bot, message, args)
+		if target == nil {
+			sendHTMLMessage(bot, chatID, "❌ Reply to a user's message or specify their <code>@username</code> / User ID to reset all warnings.\n\n<i>Example:</i> <code>/resetwarns @username</code> or <code>/rmwarns</code> (as reply)")
+			return
+		}
+
 		database.Pool.Exec(context.Background(), "DELETE FROM user_warns WHERE chat_id = $1 AND user_id = $2", chatID, target.ID)
 
-		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ All warnings for <b>%s</b> have been reset.", html.EscapeString(target.FirstName)))
-		msg.ParseMode = "HTML"
-		SafeSend(bot, msg)
+		sendHTMLMessage(bot, chatID, fmt.Sprintf("✅ All warnings for <b>%s</b> have been reset to <code>0/3</code>.", html.EscapeString(target.FirstName)))
 
 	case "warns":
-		var target *tgbotapi.User
-		if message.ReplyToMessage != nil && message.ReplyToMessage.From != nil {
-			target = message.ReplyToMessage.From
-		} else if message.From != nil {
-			target = message.From
-		}
-
+		target, _ := ExtractTargetUser(bot, message, args)
 		if target == nil {
-			bot.Send(tgbotapi.NewMessage(chatID, "❌ Unable to determine user identity."))
-			return
+			if message.From != nil {
+				target = message.From
+			} else {
+				sendHTMLMessage(bot, chatID, "❌ Unable to determine user identity.")
+				return
+			}
 		}
 
 		var count int
@@ -165,13 +145,9 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			count = 0
 		}
 
-		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("⚠️ <b>%s</b> has %d/3 warnings.", html.EscapeString(target.FirstName), count))
-		msg.ParseMode = "HTML"
-		SafeSend(bot, msg)
+		sendHTMLMessage(bot, chatID, fmt.Sprintf("⚠️ <b>%s</b> has %d/3 warnings.", html.EscapeString(target.FirstName), count))
 
 	case "warnlimit", "warnmode":
-		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("⚙️ Custom <b>/%s</b> configurations are scheduled for Phase 2.", html.EscapeString(cmd)))
-		msg.ParseMode = "HTML"
-		SafeSend(bot, msg)
+		sendHTMLMessage(bot, chatID, fmt.Sprintf("⚙️ Custom <b>/%s</b> configurations are scheduled for Phase 2.", html.EscapeString(cmd)))
 	}
 }
