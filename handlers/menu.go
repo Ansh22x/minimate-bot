@@ -210,6 +210,16 @@ func getCommandsCategoryKeyboard() tgbotapi.InlineKeyboardMarkup {
 func getCategoryBackKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("👮 Admin", "tab_admin"),
+			tgbotapi.NewInlineKeyboardButtonData("🛡️ Locks", "tab_locks"),
+			tgbotapi.NewInlineKeyboardButtonData("🧹 Tools", "tab_tools"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📝 Filters", "tab_extra"),
+			tgbotapi.NewInlineKeyboardButtonData("💎 VIP", "tab_premium"),
+			tgbotapi.NewInlineKeyboardButtonData("📜 All Cmds", "menu_commands"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⬅️ Back to Categories", "menu_commands"),
 			tgbotapi.NewInlineKeyboardButtonData("🏠 Home", "start_home"),
 		),

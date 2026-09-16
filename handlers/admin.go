@@ -1166,15 +1166,24 @@ func HandleVIPCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd strin
 
 // HandleDel deletes a single replied message
 func HandleDel(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
+	fromID := int64(0)
+	if message.From != nil {
+		fromID = message.From.ID
+	} else if message.SenderChat != nil {
+		fromID = message.SenderChat.ID
+	}
+
+	if !isAdmin(bot, message.Chat.ID, fromID) {
 		return
 	}
 	if message.ReplyToMessage == nil {
 		return
 	}
 
-	bot.Request(tgbotapi.NewDeleteMessage(message.Chat.ID, message.ReplyToMessage.MessageID))
-	bot.Request(tgbotapi.NewDeleteMessage(message.Chat.ID, message.MessageID))
+	go func() {
+		bot.Request(tgbotapi.NewDeleteMessage(message.Chat.ID, message.MessageID))
+		bot.Request(tgbotapi.NewDeleteMessage(message.Chat.ID, message.ReplyToMessage.MessageID))
+	}()
 }
 
 

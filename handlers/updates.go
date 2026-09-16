@@ -105,8 +105,14 @@ func GetStartKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonURL("➕ Add Me To Your Group", addURL),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("📜 Commands Explorer", "menu_commands"),
-			tgbotapi.NewInlineKeyboardButtonData("💎 Premium VIP", "tab_premium"),
+			tgbotapi.NewInlineKeyboardButtonData("👮 Admin", "tab_admin"),
+			tgbotapi.NewInlineKeyboardButtonData("🛡️ Locks", "tab_locks"),
+			tgbotapi.NewInlineKeyboardButtonData("🧹 Tools", "tab_tools"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📝 Filters", "tab_extra"),
+			tgbotapi.NewInlineKeyboardButtonData("💎 VIP", "tab_premium"),
+			tgbotapi.NewInlineKeyboardButtonData("📜 Commands", "menu_commands"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonURL("👑 Support & Owner", ownerURL),

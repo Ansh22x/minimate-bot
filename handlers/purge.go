@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -117,51 +118,128 @@ func FindUserByID(chatID int64, userID int64) *tgbotapi.User {
 	return nil
 }
 
-// deleteMessagesBatch deletes message IDs concurrently in Telegram 100-item chunks
+// deleteMessagesBatch deletes message IDs concurrently using sub-batches and parallel worker pool
 func deleteMessagesBatch(bot *tgbotapi.BotAPI, chatID int64, messageIDs []int) int {
 	if len(messageIDs) == 0 {
 		return 0
 	}
 
-	deletedCount := 0
+	// Deduplicate IDs and filter out zero/negative values
+	seen := make(map[int]bool, len(messageIDs))
+	uniqueIDs := make([]int, 0, len(messageIDs))
+	for _, id := range messageIDs {
+		if id > 0 && !seen[id] {
+			seen[id] = true
+			uniqueIDs = append(uniqueIDs, id)
+		}
+	}
+
+	if len(uniqueIDs) == 0 {
+		return 0
+	}
+
+	var totalDeleted int64
 	batchSize := 100
 
-	for i := 0; i < len(messageIDs); i += batchSize {
-		end := i + batchSize
-		if end > len(messageIDs) {
-			end = len(messageIDs)
+	// Helper to attempt Telegram deleteMessages API
+	tryDeleteBatch := func(chunk []int) bool {
+		if len(chunk) == 0 {
+			return false
 		}
-		chunk := messageIDs[i:end]
-
 		jsonBytes, err := json.Marshal(chunk)
-		if err == nil {
-			params := tgbotapi.Params{
-				"chat_id":     strconv.FormatInt(chatID, 10),
-				"message_ids": string(jsonBytes),
+		if err != nil {
+			return false
+		}
+		params := tgbotapi.Params{
+			"chat_id":     strconv.FormatInt(chatID, 10),
+			"message_ids": string(jsonBytes),
+		}
+		_, apiErr := bot.MakeRequest("deleteMessages", params)
+		return apiErr == nil
+	}
+
+	// Helper to delete a slice of IDs concurrently using parallel workers
+	deleteConcurrently := func(ids []int) int {
+		if len(ids) == 0 {
+			return 0
+		}
+		var count int64
+		var wg sync.WaitGroup
+		idChan := make(chan int, len(ids))
+		for _, id := range ids {
+			idChan <- id
+		}
+		close(idChan)
+
+		// Spawn up to 10 concurrent delete workers
+		numWorkers := 10
+		if len(ids) < numWorkers {
+			numWorkers = len(ids)
+		}
+		if numWorkers < 1 {
+			numWorkers = 1
+		}
+
+		for w := 0; w < numWorkers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for msgID := range idChan {
+					del := tgbotapi.NewDeleteMessage(chatID, msgID)
+					_, err := bot.Request(del)
+					if err == nil {
+						atomic.AddInt64(&count, 1)
+					}
+				}
+			}()
+		}
+		wg.Wait()
+		return int(count)
+	}
+
+	for i := 0; i < len(uniqueIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(uniqueIDs) {
+			end = len(uniqueIDs)
+		}
+		chunk := uniqueIDs[i:end]
+
+		// 1. Try deleting entire 100-message chunk in 1 fast Telegram API request
+		if tryDeleteBatch(chunk) {
+			atomic.AddInt64(&totalDeleted, int64(len(chunk)))
+			continue
+		}
+
+		// 2. If 100-message chunk failed (likely due to 1 missing/invalid message ID),
+		// split into smaller 20-message sub-chunks
+		subBatchSize := 20
+		var remainingIDs []int
+		for j := 0; j < len(chunk); j += subBatchSize {
+			subEnd := j + subBatchSize
+			if subEnd > len(chunk) {
+				subEnd = len(chunk)
 			}
-			_, apiErr := bot.MakeRequest("deleteMessages", params)
-			if apiErr == nil {
-				deletedCount += len(chunk)
-				continue
+			subChunk := chunk[j:subEnd]
+			if tryDeleteBatch(subChunk) {
+				atomic.AddInt64(&totalDeleted, int64(len(subChunk)))
+			} else {
+				// Sub-chunk failed, collect for individual concurrent deletion
+				remainingIDs = append(remainingIDs, subChunk...)
 			}
 		}
 
-		// Fallback to individual deletion if batch API fails
-		for _, id := range chunk {
-			del := tgbotapi.NewDeleteMessage(chatID, id)
-			_, singleErr := bot.Request(del)
-			if singleErr == nil {
-				deletedCount++
-			}
-			time.Sleep(15 * time.Millisecond)
+		// 3. Delete any remaining failed sub-chunks concurrently
+		if len(remainingIDs) > 0 {
+			c := deleteConcurrently(remainingIDs)
+			atomic.AddInt64(&totalDeleted, int64(c))
 		}
 	}
 
 	// Remove deleted messages from in-memory cache
 	msgCacheMutex.Lock()
 	if cachedList, exists := chatMsgCache[chatID]; exists {
-		deletedMap := make(map[int]bool, len(messageIDs))
-		for _, id := range messageIDs {
+		deletedMap := make(map[int]bool, len(uniqueIDs))
+		for _, id := range uniqueIDs {
 			deletedMap[id] = true
 		}
 		newList := make([]CachedMessage, 0, len(cachedList))
@@ -174,7 +252,7 @@ func deleteMessagesBatch(bot *tgbotapi.BotAPI, chatID int64, messageIDs []int) i
 	}
 	msgCacheMutex.Unlock()
 
-	return deletedCount
+	return int(totalDeleted)
 }
 
 // HandlePurge handles /purge, /purge all, /purge user, /purge stickers, /spurge, etc.
@@ -214,7 +292,6 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 			}
 
 			limitCount := 100
-			// Check if numerical limit was passed, e.g. /purge stickers 50
 			fields := strings.Fields(argsClean)
 			for _, f := range fields {
 				if n, err := strconv.Atoi(f); err == nil && n > 0 {
@@ -227,8 +304,12 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 			cached := chatMsgCache[chatID]
 			var idsToDelete []int
 
+			// Always delete the purge command message first
+			idsToDelete = append(idsToDelete, message.MessageID)
+
 			if startID > 0 {
-				for _, m := range cached {
+				for i := len(cached) - 1; i >= 0; i-- {
+					m := cached[i]
 					if m.MessageID >= startID && m.MessageID <= message.MessageID && m.IsSticker {
 						idsToDelete = append(idsToDelete, m.MessageID)
 					}
@@ -243,12 +324,12 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 						}
 					}
 					if !found {
-						idsToDelete = append([]int{startID}, idsToDelete...)
+						idsToDelete = append(idsToDelete, startID)
 					}
 				}
 			} else {
 				// Purge recent stickers up to limitCount
-				for i := len(cached) - 1; i >= 0 && len(idsToDelete) < limitCount; i-- {
+				for i := len(cached) - 1; i >= 0 && len(idsToDelete) <= limitCount; i-- {
 					if cached[i].IsSticker {
 						idsToDelete = append(idsToDelete, cached[i].MessageID)
 					}
@@ -256,11 +337,7 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 			}
 			msgCacheMutex.RUnlock()
 
-			// Include the command message itself
-			idsToDelete = append(idsToDelete, message.MessageID)
-
 			deleted := deleteMessagesBatch(bot, chatID, idsToDelete)
-			// Deduct 1 for command itself if deleted
 			stickerCount := deleted - 1
 			if stickerCount < 0 {
 				stickerCount = 0
@@ -269,7 +346,7 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 			confirmText := fmt.Sprintf("🎭 Purged <b>%d</b> sticker(s).", stickerCount)
 			sent, err := sendHTMLMessage(bot, chatID, confirmText)
 			if err == nil && sent.MessageID != 0 {
-				time.Sleep(4 * time.Second)
+				time.Sleep(3500 * time.Millisecond)
 				bot.Request(tgbotapi.NewDeleteMessage(chatID, sent.MessageID))
 			}
 		}()
@@ -291,19 +368,15 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 			targetName = message.ReplyToMessage.From.FirstName
 		} else if strings.HasPrefix(argsLower, "@") {
 			targetUsername := strings.ToLower(strings.TrimPrefix(argsLower, "@"))
-			msgCacheMutex.RLock()
-			for _, m := range chatMsgCache[chatID] {
-				if m.SenderUsername == targetUsername {
-					targetUserID = m.SenderID
-					targetName = m.SenderName
-					break
-				}
+			u := FindUserByUsername(chatID, targetUsername)
+			if u != nil {
+				targetUserID = u.ID
+				targetName = u.FirstName
 			}
-			msgCacheMutex.RUnlock()
 		}
 
 		if targetUserID == 0 {
-			sendHTMLMessage(bot, chatID, "❌ Reply to a user's message with <code>/purge user</code> or <code>/spurge</code> to purge their messages.")
+			sendHTMLMessage(bot, chatID, "❌ Reply to a user's message with <code>/purge user</code> or <code>/spurge</code> (or specify <code>/purge @username</code>) to purge their messages.")
 			return
 		}
 
@@ -326,8 +399,12 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 			cached := chatMsgCache[chatID]
 			var idsToDelete []int
 
+			// Include the command message itself first
+			idsToDelete = append(idsToDelete, message.MessageID)
+
 			if startID > 0 {
-				for _, m := range cached {
+				for i := len(cached) - 1; i >= 0; i-- {
+					m := cached[i]
 					if m.MessageID >= startID && m.MessageID <= message.MessageID && m.SenderID == uID {
 						idsToDelete = append(idsToDelete, m.MessageID)
 					}
@@ -342,20 +419,17 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 						}
 					}
 					if !found {
-						idsToDelete = append([]int{startID}, idsToDelete...)
+						idsToDelete = append(idsToDelete, startID)
 					}
 				}
 			} else {
-				for i := len(cached) - 1; i >= 0 && len(idsToDelete) < limitCount; i-- {
+				for i := len(cached) - 1; i >= 0 && len(idsToDelete) <= limitCount; i-- {
 					if cached[i].SenderID == uID {
 						idsToDelete = append(idsToDelete, cached[i].MessageID)
 					}
 				}
 			}
 			msgCacheMutex.RUnlock()
-
-			// Include the command message itself
-			idsToDelete = append(idsToDelete, message.MessageID)
 
 			deleted := deleteMessagesBatch(bot, chatID, idsToDelete)
 			userMsgCount := deleted - 1
@@ -366,7 +440,7 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 			confirmText := fmt.Sprintf("🧹 Purged <b>%d</b> message(s) from <b>%s</b>.", userMsgCount, html.EscapeString(uName))
 			sent, err := sendHTMLMessage(bot, chatID, confirmText)
 			if err == nil && sent.MessageID != 0 {
-				time.Sleep(4 * time.Second)
+				time.Sleep(3500 * time.Millisecond)
 				bot.Request(tgbotapi.NewDeleteMessage(chatID, sent.MessageID))
 			}
 		}(targetUserID, targetName)
@@ -391,8 +465,8 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 			}
 		}
 		if count > 0 {
-			if count > 200 {
-				count = 200
+			if count > 500 {
+				count = 500
 			}
 			startID = message.MessageID - count
 			endID = message.MessageID
@@ -416,7 +490,9 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 
 	go func(sID, eID int) {
 		var idsToDelete []int
-		for id := sID; id <= eID; id++ {
+
+		// Collect IDs in reverse order (newest to oldest) so newest disappear first
+		for id := eID; id >= sID; id-- {
 			idsToDelete = append(idsToDelete, id)
 		}
 
@@ -429,7 +505,7 @@ func HandlePurge(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, ar
 		confirmText := fmt.Sprintf("🧹 Purged <b>%d</b> message(s).", msgCount)
 		sent, err := sendHTMLMessage(bot, chatID, confirmText)
 		if err == nil && sent.MessageID != 0 {
-			time.Sleep(4 * time.Second)
+			time.Sleep(3500 * time.Millisecond)
 			bot.Request(tgbotapi.NewDeleteMessage(chatID, sent.MessageID))
 		}
 	}(startID, endID)
