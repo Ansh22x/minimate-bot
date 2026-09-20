@@ -7,6 +7,7 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 # Copy dependency manifests and download modules
+ENV GOTOOLCHAIN=auto
 COPY go.mod go.sum ./
 RUN go mod download
 
