@@ -97,6 +97,14 @@ func CreateTables() {
 		added_by BIGINT,
 		created_at TIMESTAMPTZ DEFAULT NOW()
 	);
+
+	-- Disabled Commands Module
+	CREATE TABLE IF NOT EXISTS chat_disabled_commands (
+		chat_id BIGINT NOT NULL,
+		command VARCHAR(64) NOT NULL,
+		disabled_at TIMESTAMPTZ DEFAULT NOW(),
+		PRIMARY KEY (chat_id, command)
+	);
 	`
 
 	_, err := Pool.Exec(context.Background(), query)

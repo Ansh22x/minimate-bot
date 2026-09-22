@@ -58,6 +58,11 @@ func HandleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 • <code>/fullpromote [title]</code> — Promote directly to Sr. Admin (Full Rights)
 • <code>/title &lt;text&gt;</code> — Set custom admin title
 • <code>/adminlist</code> — View staff directory grouped by rank
+• <code>/disable &lt;cmd&gt;</code> — Disable command for regular members
+• <code>/enable &lt;cmd&gt;</code> — Re-enable command
+• <code>/disabled</code> — View disabled commands in chat
+• <code>/disableable</code> — View disableable commands list
+• <code>/enableall</code> — Re-enable all commands
 • <code>/demote</code> — Demote admin to regular member</blockquote>`
 		markup = getCategoryBackKeyboard()
 
@@ -88,6 +93,7 @@ func HandleMenuCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 • <code>/pin loud</code> — Pin message with notification
 • <code>/unpin</code> — Unpin replied message
 • <code>/unpinall</code> — Unpin all pinned messages in chat
+• <code>/disabled</code> — View disabled commands list
 • <code>/ping</code> — Check bot latency & response speed
 • <code>/id</code> — Get user ID and chat ID
 • <code>/info</code> — View detailed account stats</blockquote>`

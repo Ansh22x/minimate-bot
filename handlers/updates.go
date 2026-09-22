@@ -160,6 +160,11 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		fromUserName = message.SenderChat.UserName
 	}
 
+	// Check if command is disabled for regular members
+	if IsCommandDisabled(chatID, command) && !isAdmin(bot, chatID, fromID) {
+		return
+	}
+
 	var reply tgbotapi.MessageConfig
 	sendReply := true
 
@@ -512,6 +517,13 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 
 	case "pin", "unpin", "unpinall":
 		HandlePinCommand(bot, message, command)
+		sendReply = false
+
+	// -------------------------
+	// 11. COMMAND ENABLE / DISABLE
+	// -------------------------
+	case "disable", "enable", "disabled", "disables", "disabledlist", "disableable", "disableablelist", "enableall":
+		HandleDisableCommand(bot, message, command, args)
 		sendReply = false
 
 	case "setlang", "description":

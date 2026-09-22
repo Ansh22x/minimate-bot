@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"minimate-bot/config"
 	"minimate-bot/database"
@@ -80,29 +82,68 @@ func main() {
 		log.Println("✅ Webhook cleared, long-polling ready.")
 	}
 
-	// 6. Configure Long Polling
-	updateConfig := tgbotapi.NewUpdate(0)
-	updateConfig.Timeout = 60
-	updates := bot.GetUpdatesChan(updateConfig)
-
 	// Listen for OS interrupt signals for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	log.Println("⚡ MiniMate is online and actively listening for updates...")
 
-	// 7. Event Dispatcher Loop
+	// 6. High-Performance Long Polling with Forum Topic & Thread Isolation
+	offset := 0
 	for {
 		select {
 		case sig := <-sigChan:
 			log.Printf("Received signal %v, shutting down...", sig)
-			bot.StopReceivingUpdates()
 			return
-		case update, ok := <-updates:
-			if !ok {
-				log.Println("Updates channel closed, exiting...")
-				return
+		default:
+		}
+
+		updateConfig := tgbotapi.NewUpdate(offset)
+		updateConfig.Timeout = 60
+		resp, err := bot.Request(updateConfig)
+		if err != nil {
+			log.Printf("Long polling error: %v", err)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		var updates []tgbotapi.Update
+		if err := json.Unmarshal(resp.Result, &updates); err != nil {
+			continue
+		}
+
+		// Extract topic/thread info from raw updates
+		var rawUpdates []struct {
+			UpdateID int `json:"update_id"`
+			Message  *struct {
+				MessageID       int `json:"message_id"`
+				MessageThreadID int `json:"message_thread_id"`
+				Chat            *struct {
+					ID int64 `json:"id"`
+				} `json:"chat"`
+				ReplyToMessage *struct {
+					MessageID       int `json:"message_id"`
+					MessageThreadID int `json:"message_thread_id"`
+				} `json:"reply_to_message"`
+			} `json:"message"`
+		}
+		json.Unmarshal(resp.Result, &rawUpdates)
+
+		for i, update := range updates {
+			if update.UpdateID >= offset {
+				offset = update.UpdateID + 1
 			}
+
+			if i < len(rawUpdates) && rawUpdates[i].Message != nil && rawUpdates[i].Message.Chat != nil {
+				rm := rawUpdates[i].Message
+				if rm.MessageThreadID != 0 {
+					handlers.RegisterMessageThread(rm.Chat.ID, rm.MessageID, rm.MessageThreadID)
+				}
+				if rm.ReplyToMessage != nil && rm.ReplyToMessage.MessageThreadID != 0 {
+					handlers.RegisterMessageThread(rm.Chat.ID, rm.ReplyToMessage.MessageID, rm.ReplyToMessage.MessageThreadID)
+				}
+			}
+
 			if update.Message != nil {
 				sender := "anonymous/channel"
 				if update.Message.From != nil {
