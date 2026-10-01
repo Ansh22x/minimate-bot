@@ -2,12 +2,15 @@ package database
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"log"
-	"os"
 	"sort"
 	"strings"
 )
+
+//go:embed migrations/*.sql
+var migrationFS embed.FS
 
 // RunMigrations applies all pending SQL migrations in order.
 // Tracks applied migrations in schema_migrations table.
@@ -41,11 +44,10 @@ func RunMigrations() {
 			continue // already applied
 		}
 
-		// Read SQL file
-		sqlPath := fmt.Sprintf("database/migrations/%s", version)
-		sqlBytes, err := os.ReadFile(sqlPath)
+		// Read SQL file from embedded filesystem
+		sqlBytes, err := migrationFS.ReadFile(fmt.Sprintf("migrations/%s", version))
 		if err != nil {
-			log.Printf("⚠️ Cannot read migration %s: %v", version, err)
+			log.Printf("⚠️ Cannot read embedded migration %s: %v", version, err)
 			continue
 		}
 
