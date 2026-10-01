@@ -13,6 +13,7 @@ import (
 
 	"minimate-bot/config"
 	"minimate-bot/database"
+	"minimate-bot/services"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -181,6 +182,46 @@ func parseDuration(durationStr string) (int64, error) {
 	}
 
 	return time.Now().Add(d).Unix(), nil
+}
+
+// parseTimeDuration parses strings like "10m", "2h", "1d" into time.Duration
+func parseTimeDuration(durationStr string) (time.Duration, error) {
+	if len(durationStr) < 2 {
+		return 0, fmt.Errorf("invalid duration format")
+	}
+
+	unit := strings.ToLower(durationStr[len(durationStr)-1:])
+	valStr := durationStr[:len(durationStr)-1]
+
+	val, err := strconv.ParseInt(valStr, 10, 64)
+	if err != nil || val <= 0 {
+		return 0, fmt.Errorf("invalid duration value")
+	}
+
+	var d time.Duration
+	switch unit {
+	case "s":
+		d = time.Duration(val) * time.Second
+	case "m":
+		d = time.Duration(val) * time.Minute
+	case "h":
+		d = time.Duration(val) * time.Hour
+	case "d":
+		d = time.Duration(val) * 24 * time.Hour
+	case "w":
+		d = time.Duration(val) * 7 * 24 * time.Hour
+	default:
+		return 0, fmt.Errorf("unknown time unit: %s (use s, m, h, d, w)", unit)
+	}
+
+	if d < 10*time.Second {
+		return 0, fmt.Errorf("duration must be at least 10 seconds")
+	}
+	if d > 366*24*time.Hour {
+		return 0, fmt.Errorf("duration cannot exceed 366 days")
+	}
+
+	return d, nil
 }
 
 func sendHTMLMessage(bot *tgbotapi.BotAPI, chatID int64, text string) (tgbotapi.Message, error) {
@@ -395,11 +436,15 @@ func ExtractTargetUser(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args str
 
 // HandleBan permanently bans a user
 func HandleBan(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
-	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
+	fromID := int64(0)
+	if message.From != nil {
+		fromID = message.From.ID
+	}
+	if !isAdmin(bot, message.Chat.ID, fromID) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ You must be an administrator to use this command.")
 		return
 	}
-	target, _ := ExtractTargetUser(bot, message, args)
+	target, reason := ExtractTargetUser(bot, message, args)
 	if target == nil {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ Reply to a user's message or specify their <code>@username</code> / User ID to ban them.")
 		return
@@ -409,27 +454,41 @@ func HandleBan(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ I cannot ban myself.")
 		return
 	}
-
-	banConfig := tgbotapi.BanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{
-			ChatID: message.Chat.ID,
-			UserID: target.ID,
-		},
-	}
-
-	_, err := bot.Request(banConfig)
-	if err != nil {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Failed to ban. Ensure I have admin permissions.")
-		log.Printf("Ban failed: %v", err)
+	if isAdmin(bot, message.Chat.ID, target.ID) {
+		sendHTMLMessage(bot, message.Chat.ID, "❌ You cannot ban an administrator.")
 		return
 	}
 
-	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("🚫 <b>%s</b> has been banned.", html.EscapeString(target.FirstName)))
+	if strings.TrimSpace(reason) == "" {
+		reason = "Banned by administrator"
+	}
+
+	res := services.BanUser(bot, message.Chat.ID, target.ID, fromID, reason, 0)
+	if !res.Success {
+		sendHTMLMessage(bot, message.Chat.ID, res.Message)
+		return
+	}
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("🚫 <b>%s</b> has been permanently banned.\n<b>Reason:</b> %s",
+		html.EscapeString(target.FirstName), html.EscapeString(reason)))
+	msg.ParseMode = "HTML"
+	if res.UndoToken != "" {
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("↩️ Undo Ban", res.UndoToken),
+			),
+		)
+	}
+	SafeSend(bot, msg)
 }
 
 // HandleTBan temporarily bans a user (e.g., /tban 2d or /tban @username 2d)
 func HandleTBan(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
-	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
+	fromID := int64(0)
+	if message.From != nil {
+		fromID = message.From.ID
+	}
+	if !isAdmin(bot, message.Chat.ID, fromID) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ You must be an administrator to use this command.")
 		return
 	}
@@ -441,7 +500,7 @@ func HandleTBan(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 		return
 	}
 
-	untilDate, err := parseDuration(durStr)
+	dur, err := parseTimeDuration(durStr)
 	if err != nil {
 		sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("❌ %s", html.EscapeString(err.Error())))
 		return
@@ -451,27 +510,37 @@ func HandleTBan(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ I cannot ban myself.")
 		return
 	}
-
-	banConfig := tgbotapi.BanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{
-			ChatID: message.Chat.ID,
-			UserID: target.ID,
-		},
-		UntilDate: untilDate,
-	}
-
-	_, err = bot.Request(banConfig)
-	if err != nil {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Failed to temporarily ban user. Ensure I have admin rights.")
+	if isAdmin(bot, message.Chat.ID, target.ID) {
+		sendHTMLMessage(bot, message.Chat.ID, "❌ You cannot ban an administrator.")
 		return
 	}
 
-	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("⏳ <b>%s</b> has been temporarily banned for %s.", html.EscapeString(target.FirstName), html.EscapeString(durStr)))
+	res := services.BanUser(bot, message.Chat.ID, target.ID, fromID, fmt.Sprintf("Temp-banned for %s", durStr), dur)
+	if !res.Success {
+		sendHTMLMessage(bot, message.Chat.ID, res.Message)
+		return
+	}
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("⏳ <b>%s</b> has been temporarily banned for <b>%s</b>.",
+		html.EscapeString(target.FirstName), html.EscapeString(durStr)))
+	msg.ParseMode = "HTML"
+	if res.UndoToken != "" {
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("↩️ Undo Ban", res.UndoToken),
+			),
+		)
+	}
+	SafeSend(bot, msg)
 }
 
 // HandleUnban unbans a user
 func HandleUnban(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
-	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
+	fromID := int64(0)
+	if message.From != nil {
+		fromID = message.From.ID
+	}
+	if !isAdmin(bot, message.Chat.ID, fromID) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ You must be an administrator to use this command.")
 		return
 	}
@@ -481,17 +550,9 @@ func HandleUnban(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 		return
 	}
 
-	unbanConfig := tgbotapi.UnbanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{
-			ChatID: message.Chat.ID,
-			UserID: target.ID,
-		},
-		OnlyIfBanned: true,
-	}
-
-	_, err := bot.Request(unbanConfig)
-	if err != nil {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Failed to unban user.")
+	res := services.UnbanUser(bot, message.Chat.ID, target.ID, fromID, "Unbanned by administrator")
+	if !res.Success {
+		sendHTMLMessage(bot, message.Chat.ID, res.Message)
 		return
 	}
 
@@ -500,11 +561,15 @@ func HandleUnban(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 
 // HandleKick kicks a user from the chat (bans then unbans)
 func HandleKick(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
-	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
+	fromID := int64(0)
+	if message.From != nil {
+		fromID = message.From.ID
+	}
+	if !isAdmin(bot, message.Chat.ID, fromID) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ You must be an administrator to use this command.")
 		return
 	}
-	target, _ := ExtractTargetUser(bot, message, args)
+	target, reason := ExtractTargetUser(bot, message, args)
 	if target == nil {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ Reply to a user's message or specify their <code>@username</code> / User ID to kick them.")
 		return
@@ -514,19 +579,23 @@ func HandleKick(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ I cannot kick myself.")
 		return
 	}
-
-	banConfig := tgbotapi.BanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: message.Chat.ID, UserID: target.ID},
+	if isAdmin(bot, message.Chat.ID, target.ID) {
+		sendHTMLMessage(bot, message.Chat.ID, "❌ You cannot kick an administrator.")
+		return
 	}
-	bot.Request(banConfig)
 
-	unbanConfig := tgbotapi.UnbanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: message.Chat.ID, UserID: target.ID},
-		OnlyIfBanned:     true,
+	if strings.TrimSpace(reason) == "" {
+		reason = "Kicked by administrator"
 	}
-	bot.Request(unbanConfig)
 
-	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("👢 <b>%s</b> has been kicked from the group.", html.EscapeString(target.FirstName)))
+	res := services.KickUser(bot, message.Chat.ID, target.ID, fromID, reason)
+	if !res.Success {
+		sendHTMLMessage(bot, message.Chat.ID, res.Message)
+		return
+	}
+
+	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("👢 <b>%s</b> has been kicked from the group.\n<b>Reason:</b> %s",
+		html.EscapeString(target.FirstName), html.EscapeString(reason)))
 }
 
 // -------------------------
@@ -535,11 +604,15 @@ func HandleKick(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 
 // HandleMute permanently restricts a user from sending messages
 func HandleMute(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
-	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
+	fromID := int64(0)
+	if message.From != nil {
+		fromID = message.From.ID
+	}
+	if !isAdmin(bot, message.Chat.ID, fromID) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ You must be an administrator to use this command.")
 		return
 	}
-	target, _ := ExtractTargetUser(bot, message, args)
+	target, reason := ExtractTargetUser(bot, message, args)
 	if target == nil {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ Reply to a user's message or specify their <code>@username</code> / User ID to mute them.")
 		return
@@ -549,31 +622,41 @@ func HandleMute(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ I cannot mute myself.")
 		return
 	}
-
-	perms := tgbotapi.ChatPermissions{
-		CanSendMessages: false,
-	}
-
-	restrictConfig := tgbotapi.RestrictChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{
-			ChatID: message.Chat.ID,
-			UserID: target.ID,
-		},
-		Permissions: &perms,
-	}
-
-	_, err := bot.Request(restrictConfig)
-	if err != nil {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Failed to mute user. Ensure I have admin rights.")
+	if isAdmin(bot, message.Chat.ID, target.ID) {
+		sendHTMLMessage(bot, message.Chat.ID, "❌ You cannot mute an administrator.")
 		return
 	}
 
-	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("🤐 <b>%s</b> has been muted.", html.EscapeString(target.FirstName)))
+	if strings.TrimSpace(reason) == "" {
+		reason = "Muted by administrator"
+	}
+
+	res := services.MuteUser(bot, message.Chat.ID, target.ID, fromID, reason, 0)
+	if !res.Success {
+		sendHTMLMessage(bot, message.Chat.ID, res.Message)
+		return
+	}
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("🤐 <b>%s</b> has been permanently muted.\n<b>Reason:</b> %s",
+		html.EscapeString(target.FirstName), html.EscapeString(reason)))
+	msg.ParseMode = "HTML"
+	if res.UndoToken != "" {
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("↩️ Undo Mute", res.UndoToken),
+			),
+		)
+	}
+	SafeSend(bot, msg)
 }
 
 // HandleTMute temporarily restricts a user
 func HandleTMute(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
-	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
+	fromID := int64(0)
+	if message.From != nil {
+		fromID = message.From.ID
+	}
+	if !isAdmin(bot, message.Chat.ID, fromID) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ You must be an administrator to use this command.")
 		return
 	}
@@ -585,7 +668,7 @@ func HandleTMute(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 		return
 	}
 
-	untilDate, err := parseDuration(durStr)
+	dur, err := parseTimeDuration(durStr)
 	if err != nil {
 		sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("❌ %s", html.EscapeString(err.Error())))
 		return
@@ -595,32 +678,37 @@ func HandleTMute(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ I cannot mute myself.")
 		return
 	}
-
-	perms := tgbotapi.ChatPermissions{
-		CanSendMessages: false,
-	}
-
-	restrictConfig := tgbotapi.RestrictChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{
-			ChatID: message.Chat.ID,
-			UserID: target.ID,
-		},
-		Permissions: &perms,
-		UntilDate:   untilDate,
-	}
-
-	_, err = bot.Request(restrictConfig)
-	if err != nil {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Failed to temporarily mute user.")
+	if isAdmin(bot, message.Chat.ID, target.ID) {
+		sendHTMLMessage(bot, message.Chat.ID, "❌ You cannot mute an administrator.")
 		return
 	}
 
-	sendHTMLMessage(bot, message.Chat.ID, fmt.Sprintf("🤐 <b>%s</b> has been muted for %s.", html.EscapeString(target.FirstName), html.EscapeString(durStr)))
+	res := services.MuteUser(bot, message.Chat.ID, target.ID, fromID, fmt.Sprintf("Temp-muted for %s", durStr), dur)
+	if !res.Success {
+		sendHTMLMessage(bot, message.Chat.ID, res.Message)
+		return
+	}
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("🤐 <b>%s</b> has been muted for <b>%s</b>.",
+		html.EscapeString(target.FirstName), html.EscapeString(durStr)))
+	msg.ParseMode = "HTML"
+	if res.UndoToken != "" {
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("↩️ Undo Mute", res.UndoToken),
+			),
+		)
+	}
+	SafeSend(bot, msg)
 }
 
 // HandleUnmute restores a user's permissions
 func HandleUnmute(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) {
-	if message.From == nil || !isAdmin(bot, message.Chat.ID, message.From.ID) {
+	fromID := int64(0)
+	if message.From != nil {
+		fromID = message.From.ID
+	}
+	if !isAdmin(bot, message.Chat.ID, fromID) {
 		sendHTMLMessage(bot, message.Chat.ID, "❌ You must be an administrator to use this command.")
 		return
 	}
@@ -630,26 +718,9 @@ func HandleUnmute(bot *tgbotapi.BotAPI, message *tgbotapi.Message, args string) 
 		return
 	}
 
-	targetUserID := target.ID
-	perms := tgbotapi.ChatPermissions{
-		CanSendMessages:       true,
-		CanSendMediaMessages:  true,
-		CanSendPolls:          true,
-		CanSendOtherMessages:  true,
-		CanAddWebPagePreviews: true,
-	}
-
-	restrictConfig := tgbotapi.RestrictChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{
-			ChatID: message.Chat.ID,
-			UserID: targetUserID,
-		},
-		Permissions: &perms,
-	}
-
-	_, err := bot.Request(restrictConfig)
-	if err != nil {
-		sendHTMLMessage(bot, message.Chat.ID, "❌ Failed to unmute user.")
+	res := services.UnmuteUser(bot, message.Chat.ID, target.ID, fromID, "Unmuted by administrator")
+	if !res.Success {
+		sendHTMLMessage(bot, message.Chat.ID, res.Message)
 		return
 	}
 

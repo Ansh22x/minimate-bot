@@ -1,17 +1,17 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"html"
 	"strings"
 
-	"minimate-bot/database"
+	"minimate-bot/services"
+	"minimate-bot/workers"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// HandleWarnCommand manages user warnings
+// HandleWarnCommand manages user warnings and threshold punishments
 func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd string, args string) {
 	chatID := message.Chat.ID
 	fromID := int64(0)
@@ -20,7 +20,7 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 	} else if message.SenderChat != nil {
 		fromID = message.SenderChat.ID
 	}
-	isUserAdmin := isAdmin(bot, chatID, fromID)
+	isUserAdmin := services.IsAdminOrRole(bot, chatID, fromID)
 
 	switch cmd {
 	case "warn", "dwarn":
@@ -39,22 +39,8 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			sendHTMLMessage(bot, chatID, "❌ I cannot warn myself.")
 			return
 		}
-		if isAdmin(bot, chatID, target.ID) {
+		if services.IsAdminOrRole(bot, chatID, target.ID) {
 			sendHTMLMessage(bot, chatID, "❌ You cannot issue warnings to an administrator.")
-			return
-		}
-
-		var newWarnCount int
-		query := `
-			INSERT INTO user_warns (chat_id, user_id, warn_count) 
-			VALUES ($1, $2, 1)
-			ON CONFLICT (chat_id, user_id) 
-			DO UPDATE SET warn_count = user_warns.warn_count + 1
-			RETURNING warn_count;
-		`
-		err := database.Pool.QueryRow(context.Background(), query, chatID, target.ID).Scan(&newWarnCount)
-		if err != nil {
-			sendHTMLMessage(bot, chatID, "❌ Database error while issuing warning.")
 			return
 		}
 
@@ -63,27 +49,38 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			reasonText = strings.TrimSpace(reason)
 		}
 
-		warnText := fmt.Sprintf("⚠️ <b>%s</b> has been warned.\n<b>Reason:</b> %s\n<b>Warnings:</b> %d/3",
-			html.EscapeString(target.FirstName), html.EscapeString(reasonText), newWarnCount)
-		sendHTMLMessage(bot, chatID, warnText)
+		// Issue warning via central Moderation Service
+		warnCount, autoAction, res := services.WarnUser(bot, chatID, target.ID, fromID, reasonText)
+		if !res.Success {
+			sendHTMLMessage(bot, chatID, res.Message)
+			return
+		}
+
+		// Track metrics
+		workers.IncrMetric(chatID, workers.MetricWarn)
+
+		settings := services.GetGroupSettings(chatID)
+		warnText := fmt.Sprintf("⚠️ <b>%s</b> has been warned.\n<b>Reason:</b> %s\n<b>Warnings:</b> %d/%d",
+			html.EscapeString(target.FirstName), html.EscapeString(reasonText), warnCount, settings.WarnLimit)
+
+		if autoAction != "" {
+			warnText += fmt.Sprintf("\n\n🚨 <b>Automatic Threshold Triggered:</b> <code>%s</code>", html.EscapeString(autoAction))
+		}
+
+		msg := tgbotapi.NewMessage(chatID, warnText)
+		msg.ParseMode = "HTML"
+		if res.UndoToken != "" {
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("↩️ Undo Warn", res.UndoToken),
+				),
+			)
+		}
+		SafeSend(bot, msg)
 
 		// Delete the offending message if the command is /dwarn and it was a reply
 		if cmd == "dwarn" && message.ReplyToMessage != nil {
 			bot.Request(tgbotapi.NewDeleteMessage(chatID, message.ReplyToMessage.MessageID))
-		}
-
-		// Auto-ban logic if they hit 3 warnings
-		if newWarnCount >= 3 {
-			banConfig := tgbotapi.BanChatMemberConfig{
-				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: chatID, UserID: target.ID},
-			}
-			bot.Request(banConfig)
-
-			banMsg := fmt.Sprintf("🚫 <b>%s</b> reached 3 warnings and was banned.", html.EscapeString(target.FirstName))
-			sendHTMLMessage(bot, chatID, banMsg)
-
-			// Reset warns after ban
-			database.Pool.Exec(context.Background(), "DELETE FROM user_warns WHERE chat_id = $1 AND user_id = $2", chatID, target.ID)
 		}
 
 	case "unwarn", "rmwarn", "delwarn", "removewarn", "remwarn", "unwarns":
@@ -98,19 +95,15 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			return
 		}
 
-		var count int
-		query := `
-			UPDATE user_warns 
-			SET warn_count = GREATEST(0, warn_count - 1) 
-			WHERE chat_id = $1 AND user_id = $2 
-			RETURNING warn_count;
-		`
-		err := database.Pool.QueryRow(context.Background(), query, chatID, target.ID).Scan(&count)
+		remaining, err := services.RemoveWarn(chatID, target.ID, fromID)
 		if err != nil {
-			count = 0
+			sendHTMLMessage(bot, chatID, "❌ No active warnings found for this user.")
+			return
 		}
 
-		sendHTMLMessage(bot, chatID, fmt.Sprintf("✅ Removed a warning for <b>%s</b>.\n<b>Warnings:</b> %d/3", html.EscapeString(target.FirstName), count))
+		settings := services.GetGroupSettings(chatID)
+		sendHTMLMessage(bot, chatID, fmt.Sprintf("✅ Removed a warning for <b>%s</b>.\n<b>Warnings:</b> %d/%d",
+			html.EscapeString(target.FirstName), remaining, settings.WarnLimit))
 
 	case "rmwarns", "resetwarns", "delwarns", "clearwarns", "resetwarn", "clearwarn", "removewarns", "removeallwarns":
 		if !isUserAdmin {
@@ -124,9 +117,15 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			return
 		}
 
-		database.Pool.Exec(context.Background(), "DELETE FROM user_warns WHERE chat_id = $1 AND user_id = $2", chatID, target.ID)
+		err := services.ResetWarns(chatID, target.ID, fromID)
+		if err != nil {
+			sendHTMLMessage(bot, chatID, "❌ Failed to reset warnings.")
+			return
+		}
 
-		sendHTMLMessage(bot, chatID, fmt.Sprintf("✅ All warnings for <b>%s</b> have been reset to <code>0/3</code>.", html.EscapeString(target.FirstName)))
+		settings := services.GetGroupSettings(chatID)
+		sendHTMLMessage(bot, chatID, fmt.Sprintf("✅ All warnings for <b>%s</b> have been reset to <code>0/%d</code>.",
+			html.EscapeString(target.FirstName), settings.WarnLimit))
 
 	case "warns":
 		target, _ := ExtractTargetUser(bot, message, args)
@@ -139,15 +138,13 @@ func HandleWarnCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, cmd stri
 			}
 		}
 
-		var count int
-		err := database.Pool.QueryRow(context.Background(), "SELECT warn_count FROM user_warns WHERE chat_id = $1 AND user_id = $2", chatID, target.ID).Scan(&count)
-		if err != nil {
-			count = 0
-		}
+		count := services.GetWarnCount(chatID, target.ID)
+		settings := services.GetGroupSettings(chatID)
 
-		sendHTMLMessage(bot, chatID, fmt.Sprintf("⚠️ <b>%s</b> has %d/3 warnings.", html.EscapeString(target.FirstName), count))
+		sendHTMLMessage(bot, chatID, fmt.Sprintf("⚠️ <b>%s</b> has <code>%d/%d</code> warnings.",
+			html.EscapeString(target.FirstName), count, settings.WarnLimit))
 
 	case "warnlimit", "warnmode":
-		sendHTMLMessage(bot, chatID, fmt.Sprintf("⚙️ Custom <b>/%s</b> configurations are scheduled for Phase 2.", html.EscapeString(cmd)))
+		sendHTMLMessage(bot, chatID, "⚙️ Configure custom warning limits and action modes in the <code>/panel</code> dashboard under <b>⚙️ Settings</b>.")
 	}
 }
