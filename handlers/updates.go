@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"minimate-bot/config"
+	"minimate-bot/services"
+	"minimate-bot/workers"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -25,10 +27,19 @@ var (
 
 // HandleUpdate processes each incoming update concurrently
 func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	// 1. Handle Inline Callbacks (Captcha verification & Tabbed Menus)
+	// 1. Handle Inline Callbacks (Captcha, Panel Dashboard, Undo, Tabbed Menus)
 	if update.CallbackQuery != nil {
-		if strings.HasPrefix(update.CallbackQuery.Data, "captcha_verify:") {
+		data := update.CallbackQuery.Data
+		if strings.HasPrefix(data, "captcha_verify:") {
 			HandleCaptchaCallback(bot, update.CallbackQuery)
+			return
+		}
+		if strings.HasPrefix(data, "panel_") || strings.HasPrefix(data, "raid_") {
+			HandlePanelCallback(bot, update.CallbackQuery)
+			return
+		}
+		if strings.HasPrefix(data, "undo_") {
+			HandleUndoCallback(bot, update.CallbackQuery)
 			return
 		}
 		HandleMenuCallback(bot, update.CallbackQuery)
@@ -43,18 +54,36 @@ func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	// Track message in memory cache for smart filtering & fast purging
 	TrackMessage(update.Message)
 
-	// Automatically track active group in database asynchronously (0ms latency impact)
+	// Automatically track active group and user in database asynchronously
+	services.UpsertGroup(update.Message.Chat)
+	if update.Message.From != nil {
+		services.UpsertUser(update.Message.From)
+	}
 	go RecordChatActivity(update.Message.Chat)
+
+	// Increment message analytics counter
+	workers.IncrMetric(update.Message.Chat.ID, workers.MetricMessage)
 
 	// 2. Handle Security Locks (Anti-Link, Anti-Forward, Media blocker)
 	if CheckMessageLocks(bot, update.Message) {
 		return
 	}
 
-	// 3. Handle new members joining (Welcomes & Captcha Challenge)
+	// 3. Multi-Layer Anti-Spam Engine Check
+	if services.CheckSpam(bot, update.Message) {
+		return
+	}
+
+	// 4. Handle new members joining (Anti-Raid, Welcomes & Captcha Challenge)
 	if len(update.Message.NewChatMembers) > 0 {
+		workers.IncrMetric(update.Message.Chat.ID, workers.MetricJoin)
 		locks := getLocks(update.Message.Chat.ID)
 		for _, newMember := range update.Message.NewChatMembers {
+			// Anti-Raid detection
+			if !newMember.IsBot {
+				services.RecordJoin(bot, update.Message.Chat.ID, &newMember)
+			}
+
 			// If unauthorized bot lock is active, auto-ban the bot
 			if newMember.IsBot && locks.LockBots && newMember.ID != bot.Self.ID {
 				bot.Request(tgbotapi.BanChatMemberConfig{
@@ -70,24 +99,42 @@ func HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		}
 
 		HandleNewMembers(bot, update.Message)
+
+		// Auto-delete join service messages if enabled in settings
+		settings := services.GetGroupSettings(update.Message.Chat.ID)
+		if settings.DeleteJoinMessages {
+			bot.Request(tgbotapi.DeleteMessageConfig{ChatID: update.Message.Chat.ID, MessageID: update.Message.MessageID})
+		}
 		return
 	}
 
-	// 4. Handle left members (Goodbyes)
+	// 5. Handle left members (Goodbyes)
 	if update.Message.LeftChatMember != nil {
+		workers.IncrMetric(update.Message.Chat.ID, workers.MetricLeave)
 		HandleLeftMember(bot, update.Message)
+
+		// Auto-delete leave service messages if enabled in settings
+		settings := services.GetGroupSettings(update.Message.Chat.ID)
+		if settings.DeleteLeaveMessages {
+			bot.Request(tgbotapi.DeleteMessageConfig{ChatID: update.Message.Chat.ID, MessageID: update.Message.MessageID})
+		}
 		return
 	}
 
 	start := time.Now()
 
-	// 5. Route Commands
+	// 6. Route Commands
 	if update.Message.IsCommand() {
+		// Auto-delete command message if enabled in settings
+		settings := services.GetGroupSettings(update.Message.Chat.ID)
+		if settings.DeleteCmdMessages {
+			bot.Request(tgbotapi.DeleteMessageConfig{ChatID: update.Message.Chat.ID, MessageID: update.Message.MessageID})
+		}
 		handleCommand(bot, update.Message, start)
 		return
 	}
 
-	// 6. Route Regular Messages (Filters & Notes trigger)
+	// 7. Route Regular Messages (Filters & Notes trigger)
 	handlePassiveFilters(bot, update.Message)
 }
 
@@ -314,7 +361,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		SafeSend(bot, msg)
 		sendReply = false
 
-	case "dashboard", "stats":
+	case "botstats", "ownerdashboard", "sysinfo":
 		HandleOwnerDashboard(bot, message)
 		sendReply = false
 
@@ -520,7 +567,26 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		sendReply = false
 
 	// -------------------------
-	// 11. COMMAND ENABLE / DISABLE
+	// 11. DASHBOARD, SETTINGS & ADVANCED SECURITY
+	// -------------------------
+	case "panel", "controlpanel", "dashboard":
+		HandlePanelCommand(bot, message)
+		sendReply = false
+
+	case "settings", "groupsettings":
+		HandlePanelCommand(bot, message)
+		sendReply = false
+
+	case "logs", "modlogs", "auditlogs":
+		HandleLogsCommand(bot, message, args)
+		sendReply = false
+
+	case "lockdown", "unlockdown":
+		HandleLockdownCommand(bot, message, command, args)
+		sendReply = false
+
+	// -------------------------
+	// 12. COMMAND ENABLE / DISABLE
 	// -------------------------
 	case "disable", "enable", "disabled", "disables", "disabledlist", "disableable", "disableablelist", "enableall":
 		HandleDisableCommand(bot, message, command, args)

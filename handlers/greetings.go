@@ -11,6 +11,23 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+// GreetingConfig holds greetings configuration for a chat
+type GreetingConfig struct {
+	WelcomeEnabled bool
+	WelcomeText    string
+	GoodbyeEnabled bool
+	GoodbyeText    string
+}
+
+// GetGreetingConfig retrieves greetings settings from the database
+func GetGreetingConfig(chatID int64) GreetingConfig {
+	var g GreetingConfig
+	database.Pool.QueryRow(context.Background(),
+		"SELECT welcome_enabled, COALESCE(welcome_text,''), goodbye_enabled, COALESCE(goodbye_text,'') FROM chat_greetings WHERE chat_id = $1", chatID).
+		Scan(&g.WelcomeEnabled, &g.WelcomeText, &g.GoodbyeEnabled, &g.GoodbyeText)
+	return g
+}
+
 // HandleNewMembers triggers when someone joins the chat
 func HandleNewMembers(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	chatID := message.Chat.ID

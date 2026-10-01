@@ -59,6 +59,20 @@ func loadFilters(chatID int64) {
 	}
 }
 
+// GetChatFilterKeywords returns all registered filter keywords for a chat
+func GetChatFilterKeywords(chatID int64) []string {
+	loadFilters(chatID)
+	filterMutex.RLock()
+	defer filterMutex.RUnlock()
+	var list []string
+	if m, ok := filterCache[chatID]; ok {
+		for k := range m {
+			list = append(list, k)
+		}
+	}
+	return list
+}
+
 // sendFilterItem dispatches a saved filter item according to its media type
 func sendFilterItem(bot *tgbotapi.BotAPI, chatID int64, item FilterItem, replyToID int) {
 	switch item.MediaType {

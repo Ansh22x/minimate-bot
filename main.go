@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"minimate-bot/config"
 	"minimate-bot/database"
 	"minimate-bot/handlers"
+	"minimate-bot/workers"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -45,7 +47,8 @@ func main() {
 
 	// 3. Initialize Database Connection
 	database.InitDB()
-	database.CreateTables()
+	database.CreateTables()   // Legacy schema (existing tables)
+	database.RunMigrations()  // New versioned migrations
 	defer database.CloseDB()
 
 	// 4. Initialize Bot
@@ -53,6 +56,7 @@ func main() {
 	if err != nil {
 		log.Panic("Failed to initialize bot: ", err)
 	}
+
 
 	log.Printf("✅ Authorized successfully on account: @%s", bot.Self.UserName)
 
@@ -82,18 +86,27 @@ func main() {
 		log.Println("✅ Webhook cleared, long-polling ready.")
 	}
 
+	// 6. Start Background Workers with Graceful Lifecycle Management
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go workers.StartTempActionWorker(ctx, bot)
+	go workers.StartAnalyticsWorker(ctx)
+	go workers.StartSchedulerWorker(ctx, bot)
+
 	// Listen for OS interrupt signals for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	log.Println("⚡ MiniMate is online and actively listening for updates...")
 
-	// 6. High-Performance Long Polling with Forum Topic & Thread Isolation
+	// 7. High-Performance Long Polling with Forum Topic & Thread Isolation
 	offset := 0
 	for {
 		select {
 		case sig := <-sigChan:
-			log.Printf("Received signal %v, shutting down...", sig)
+			log.Printf("Received signal %v, shutting down background workers...", sig)
+			cancel()
 			return
 		default:
 		}
