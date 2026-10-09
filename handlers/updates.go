@@ -401,17 +401,7 @@ func handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, start time.T
 		reply.ParseMode = "HTML"
 
 	case "ping":
-		apiStart := time.Now()
-		msg := tgbotapi.NewMessage(chatID, "⚡ Pinging...")
-		msg.ParseMode = "HTML"
-		sentMsg, err := SafeSend(bot, msg)
-		if err == nil {
-			apiDuration := time.Since(apiStart).Milliseconds()
-			internalLatency := time.Since(start).Milliseconds()
-			editText := tgbotapi.NewEditMessageText(chatID, sentMsg.MessageID, fmt.Sprintf("⚡ <b>Pong!</b>\n\n• ⏱️ <b>API Roundtrip:</b> <code>%dms</code>\n• 🚀 <b>Internal Routing:</b> <code>%dms</code>", apiDuration, internalLatency))
-			editText.ParseMode = "HTML"
-			SafeSend(bot, editText)
-		}
+		HandlePing(bot, message, start)
 		sendReply = false
 
 	// -------------------------
