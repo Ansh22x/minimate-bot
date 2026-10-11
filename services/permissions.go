@@ -278,13 +278,13 @@ func UpsertGroup(chat *tgbotapi.Chat) {
 	}
 }
 
-// UpsertUser records or updates a user in the users table.
+// UpsertUser records or updates a user in the bot_users table.
 func UpsertUser(user *tgbotapi.User) {
 	if user == nil {
 		return
 	}
 	_, err := database.Pool.Exec(context.Background(), `
-		INSERT INTO users (user_id, username, first_name, last_name, is_bot, last_seen)
+		INSERT INTO bot_users (user_id, username, first_name, last_name, is_bot, last_seen)
 		VALUES ($1, $2, $3, $4, $5, NOW())
 		ON CONFLICT (user_id) DO UPDATE
 		SET username = $2, first_name = $3, last_name = $4, is_bot = $5, last_seen = NOW()

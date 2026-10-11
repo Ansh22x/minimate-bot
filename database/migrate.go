@@ -97,6 +97,9 @@ func getMigrationFiles() []string {
 		"004_verification.sql",
 		"005_automation.sql",
 		"006_analytics.sql",
+		"007_fix_users_columns.sql",
+		"008_users_unique_idx.sql",
+		"009_bot_users.sql",
 	}
 }
 
